@@ -1,0 +1,16 @@
+{
+  "name": "quickpic-solidity",
+  "version": "1.0.0",
+  "description": "QuickPic on-chain storage smart contracts",
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test",
+    "deploy:local": "forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast"
+  },
+  "dependencies": {
+    "forge-std": "github:foundry-rs/forge-std#v1.9.6"
+  },
+  "devDependencies": {},
+  "keywords": ["solidity", "ethereum", "quickpic"],
+  "license": "MIT"
+}

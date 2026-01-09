@@ -75,3 +75,10 @@ testbot.json
 alice.json
 maddie.json
 bob.json
+quickpic.db
+
+# Sol
+solidity/node_modules/
+solidity/out/
+solidity/cache/
+solidity/broadcast/

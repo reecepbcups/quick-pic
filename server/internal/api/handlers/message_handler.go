@@ -7,16 +7,16 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/quickpic/server/internal/models"
-	"github.com/quickpic/server/internal/repository"
 	"github.com/quickpic/server/internal/services"
+	"github.com/quickpic/server/internal/storage"
 )
 
 type MessageHandler struct {
 	messageService *services.MessageService
-	userRepo       *repository.UserRepository
+	userRepo       storage.UserRepo
 }
 
-func NewMessageHandler(messageService *services.MessageService, userRepo *repository.UserRepository) *MessageHandler {
+func NewMessageHandler(messageService *services.MessageService, userRepo storage.UserRepo) *MessageHandler {
 	return &MessageHandler{
 		messageService: messageService,
 		userRepo:       userRepo,

@@ -121,7 +121,10 @@ func main() {
 		msgFlags := flag.NewFlagSet("message", flag.ExitOnError)
 		fromUser := msgFlags.String("from", "", "sender username (required)")
 		toUser := msgFlags.String("to", "", "recipient username (required)")
-		msgFlags.Parse(os.Args[2:])
+		if err := msgFlags.Parse(os.Args[2:]); err != nil {
+			fmt.Printf("Failed to parse message flags: %v\n", err)
+			os.Exit(1)
+		}
 
 		if *fromUser == "" || *toUser == "" {
 			fmt.Println("Usage: testclient message --from <sender> --to <recipient> <message>")
@@ -263,7 +266,7 @@ func runPending(username string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -314,7 +317,7 @@ func runAccept(username, requestID string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -435,7 +438,7 @@ func runReceive(username string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -547,7 +550,7 @@ func (c *TestClient) register() error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -574,7 +577,7 @@ func (c *TestClient) login() error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -602,7 +605,7 @@ func (c *TestClient) sendFriendRequest(username string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -620,7 +623,7 @@ func (c *TestClient) getFriends() ([]Friend, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -668,7 +671,7 @@ func (c *TestClient) sendMessage(recipient *Friend, content string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -819,7 +822,7 @@ func (c *TestClient) decrypt(encryptedData []byte, senderPubKey [32]byte) ([]byt
 
 	// 7. Decompress (raw deflate, not zlib)
 	r := flate.NewReader(bytes.NewReader(compressedData))
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	plaintext, err := io.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("decompress failed: %w", err)

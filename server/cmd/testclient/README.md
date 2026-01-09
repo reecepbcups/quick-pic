@@ -48,6 +48,30 @@ go run ./cmd/testclient message --from maddie --to reecepbcups "Hello from test 
 go run ./cmd/testclient receive maddie
 ```
 
+### Solidity
+
+```bash
+cast call 0x5FbDB2315678afecb367f032d93F642f64180aa3 \
+    "getUserByUsername(string)(bytes32,uint256,string,string,string,uint256,uint256)" \
+    "maddie" --rpc-url http://localhost:8545
+
+# sent
+cast call 0x5FbDB2315678afecb367f032d93F642f64180aa3 \
+    "getMessagesSentByUser(bytes32)(bytes32[])" \
+    "0x0cd32ceedb9b4a779de952c529a8e81f00000000000000000000000000000000" --rpc-url http://localhost:8545
+
+cast call 0x5FbDB2315678afecb367f032d93F642f64180aa3 \
+    "getMessage(bytes32)(bytes32,bytes32,bytes32,bytes,uint8,string,uint256)" \
+    0x281e9e5c940f4c58bf1903fd116a601200000000000000000000000000000000 \
+    --rpc-url http://localhost:8545
+
+# received
+  cast call 0x5FbDB2315678afecb367f032d93F642f64180aa3 \
+    "getMessagesForUser(bytes32)(bytes32[])" \
+    0x0cd32ceedb9b4a779de952c529a8e81f00000000000000000000000000000000 \
+    --rpc-url http://localhost:8545
+```
+
 ### Full test flow with iOS app
 
 ```bash

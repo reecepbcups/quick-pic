@@ -10,7 +10,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/quickpic/server/internal/models"
-	"github.com/quickpic/server/internal/repository"
+	"github.com/quickpic/server/internal/storage"
 	"golang.org/x/crypto/argon2"
 )
 
@@ -20,11 +20,11 @@ const (
 )
 
 type AuthService struct {
-	userRepo  *repository.UserRepository
+	userRepo  storage.UserRepo
 	jwtSecret []byte
 }
 
-func NewAuthService(userRepo *repository.UserRepository, jwtSecret string) *AuthService {
+func NewAuthService(userRepo storage.UserRepo, jwtSecret string) *AuthService {
 	return &AuthService{
 		userRepo:  userRepo,
 		jwtSecret: []byte(jwtSecret),
@@ -159,7 +159,9 @@ func (s *AuthService) generateTokens(ctx context.Context, user *models.User) (*m
 
 func (s *AuthService) hashPassword(password string) string {
 	salt := make([]byte, 16)
-	rand.Read(salt)
+	if _, err := rand.Read(salt); err != nil {
+		panic("failed to generate random salt: " + err.Error())
+	}
 
 	hash := argon2.IDKey([]byte(password), salt, 1, 64*1024, 4, 32)
 

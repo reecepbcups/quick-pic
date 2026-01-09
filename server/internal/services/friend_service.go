@@ -5,15 +5,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/quickpic/server/internal/models"
-	"github.com/quickpic/server/internal/repository"
+	"github.com/quickpic/server/internal/storage"
 )
 
 type FriendService struct {
-	friendRepo *repository.FriendRepository
-	userRepo   *repository.UserRepository
+	friendRepo storage.FriendRepo
+	userRepo   storage.UserRepo
 }
 
-func NewFriendService(friendRepo *repository.FriendRepository, userRepo *repository.UserRepository) *FriendService {
+func NewFriendService(friendRepo storage.FriendRepo, userRepo storage.UserRepo) *FriendService {
 	return &FriendService{
 		friendRepo: friendRepo,
 		userRepo:   userRepo,

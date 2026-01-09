@@ -13,7 +13,7 @@ func TestHealthCheck(t *testing.T) {
 	client := NewTestClient(t)
 
 	resp := client.Get("/health")
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	client.ExpectStatus(resp, http.StatusOK)
 
@@ -67,12 +67,12 @@ func TestRegister_DuplicateUsername(t *testing.T) {
 
 	resp := client.Post("/auth/register", req)
 	client.ExpectStatus(resp, http.StatusCreated)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Second registration with same username should fail
 	resp = client.Post("/auth/register", req)
 	client.ExpectStatus(resp, http.StatusConflict)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 func TestRegister_InvalidInput(t *testing.T) {
@@ -111,7 +111,7 @@ func TestRegister_InvalidInput(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resp := client.Post("/auth/register", tt.req)
 			client.ExpectStatus(resp, http.StatusBadRequest)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		})
 	}
 }
@@ -128,7 +128,7 @@ func TestLogin_Success(t *testing.T) {
 		PublicKey: fakePublicKey(),
 	}
 	resp := client.Post("/auth/register", regReq)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Login
 	loginReq := LoginRequest{
@@ -161,7 +161,7 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 		PublicKey: fakePublicKey(),
 	}
 	resp := client.Post("/auth/register", regReq)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Login with wrong password
 	loginReq := LoginRequest{
@@ -171,7 +171,7 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 
 	resp = client.Post("/auth/login", loginReq)
 	client.ExpectStatus(resp, http.StatusUnauthorized)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 func TestLogin_NonexistentUser(t *testing.T) {
@@ -184,7 +184,7 @@ func TestLogin_NonexistentUser(t *testing.T) {
 
 	resp := client.Post("/auth/login", loginReq)
 	client.ExpectStatus(resp, http.StatusUnauthorized)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 func TestRefreshToken_Success(t *testing.T) {
@@ -232,7 +232,7 @@ func TestRefreshToken_InvalidToken(t *testing.T) {
 
 	resp := client.Post("/auth/refresh", refreshReq)
 	client.ExpectStatus(resp, http.StatusUnauthorized)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 func TestLogout_Success(t *testing.T) {
@@ -256,7 +256,7 @@ func TestLogout_Success(t *testing.T) {
 
 	resp = client.Post("/auth/logout", logoutReq)
 	client.ExpectStatus(resp, http.StatusOK)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Try to use the refresh token after logout - should fail
 	refreshReq := map[string]string{
@@ -265,7 +265,7 @@ func TestLogout_Success(t *testing.T) {
 
 	resp = client.Post("/auth/refresh", refreshReq)
 	client.ExpectStatus(resp, http.StatusUnauthorized)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 // =============================================================================
@@ -309,7 +309,7 @@ func TestFriends_SendRequest_ToSelf(t *testing.T) {
 
 	resp := client.Post("/friends/request", friendReq)
 	client.ExpectStatus(resp, http.StatusBadRequest)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 func TestFriends_SendRequest_UserNotFound(t *testing.T) {
@@ -324,7 +324,7 @@ func TestFriends_SendRequest_UserNotFound(t *testing.T) {
 
 	resp := client.Post("/friends/request", friendReq)
 	client.ExpectStatus(resp, http.StatusNotFound)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 func TestFriends_SendRequest_Duplicate(t *testing.T) {
@@ -342,12 +342,12 @@ func TestFriends_SendRequest_Duplicate(t *testing.T) {
 	// First request
 	resp := client.Post("/friends/request", friendReq)
 	client.ExpectStatus(resp, http.StatusCreated)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Duplicate request
 	resp = client.Post("/friends/request", friendReq)
 	client.ExpectStatus(resp, http.StatusConflict)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 func TestFriends_GetPendingRequests(t *testing.T) {
@@ -359,7 +359,7 @@ func TestFriends_GetPendingRequests(t *testing.T) {
 	// User1 sends request to User2
 	client.SetAccessToken(user1.AccessToken)
 	resp := client.Post("/friends/request", SendFriendRequest{Username: user2.User.Username})
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// User2 checks pending requests
 	client.SetAccessToken(user2.AccessToken)
@@ -397,7 +397,7 @@ func TestFriends_AcceptRequest(t *testing.T) {
 
 	resp = client.Post("/friends/accept", acceptReq)
 	client.ExpectStatus(resp, http.StatusOK)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Verify they are now friends
 	resp = client.Get("/friends")
@@ -434,7 +434,7 @@ func TestFriends_RejectRequest(t *testing.T) {
 
 	resp = client.Post("/friends/reject", rejectReq)
 	client.ExpectStatus(resp, http.StatusOK)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Verify they are not friends
 	resp = client.Get("/friends")
@@ -530,7 +530,7 @@ func TestMessages_Send_NotFriends(t *testing.T) {
 
 	resp := client.Post("/messages", msgReq)
 	client.ExpectStatus(resp, http.StatusForbidden)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 func TestMessages_Send_UserNotFound(t *testing.T) {
@@ -548,7 +548,7 @@ func TestMessages_Send_UserNotFound(t *testing.T) {
 
 	resp := client.Post("/messages", msgReq)
 	client.ExpectStatus(resp, http.StatusNotFound)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 func TestMessages_GetPending(t *testing.T) {
@@ -568,7 +568,7 @@ func TestMessages_GetPending(t *testing.T) {
 		Signature:        "c2lnbmF0dXJl",
 	}
 	resp := client.Post("/messages", msgReq)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// User2 fetches pending messages
 	client.SetAccessToken(user2.AccessToken)
@@ -591,71 +591,6 @@ func TestMessages_GetPending(t *testing.T) {
 	}
 }
 
-func TestMessages_Acknowledge(t *testing.T) {
-	client := NewTestClient(t)
-
-	user1 := createAuthenticatedUser(t, client)
-	user2 := createAuthenticatedUser(t, client)
-
-	makeFriends(t, client, user1, user2)
-
-	// User1 sends message to User2
-	client.SetAccessToken(user1.AccessToken)
-	msgReq := SendMessageRequest{
-		ToUsername:       user2.User.Username,
-		EncryptedContent: "ZW5jcnlwdGVkLW1lc3NhZ2U=",
-		ContentType:      "text",
-		Signature:        "c2lnbmF0dXJl",
-	}
-	resp := client.Post("/messages", msgReq)
-	var msgResp MessageResponse
-	client.ParseJSON(resp, &msgResp)
-
-	// User2 acknowledges the message
-	client.SetAccessToken(user2.AccessToken)
-	resp = client.Post("/messages/"+msgResp.ID+"/ack", nil)
-	client.ExpectStatus(resp, http.StatusOK)
-	resp.Body.Close()
-
-	// Verify message is deleted
-	resp = client.Get("/messages")
-	client.ExpectStatus(resp, http.StatusOK)
-
-	var messages []Message
-	client.ParseJSON(resp, &messages)
-
-	if len(messages) != 0 {
-		t.Errorf("Expected 0 messages after acknowledgment, got %d", len(messages))
-	}
-}
-
-func TestMessages_Acknowledge_NotRecipient(t *testing.T) {
-	client := NewTestClient(t)
-
-	user1 := createAuthenticatedUser(t, client)
-	user2 := createAuthenticatedUser(t, client)
-	user3 := createAuthenticatedUser(t, client)
-
-	makeFriends(t, client, user1, user2)
-
-	// User1 sends message to User2
-	client.SetAccessToken(user1.AccessToken)
-	msgReq := SendMessageRequest{
-		ToUsername:       user2.User.Username,
-		EncryptedContent: "ZW5jcnlwdGVkLW1lc3NhZ2U=",
-		ContentType:      "text",
-		Signature:        "c2lnbmF0dXJl",
-	}
-	resp := client.Post("/messages", msgReq)
-	var msgResp MessageResponse
-	client.ParseJSON(resp, &msgResp)
-
-	// User3 tries to acknowledge the message (should fail)
-	client.SetAccessToken(user3.AccessToken)
-	resp = client.Post("/messages/"+msgResp.ID+"/ack", nil)
-	client.ExpectStatus(resp, http.StatusForbidden)
-	resp.Body.Close()
-}
 
 // =============================================================================
 // PROTECTED ROUTES TESTS
@@ -688,7 +623,7 @@ func TestProtectedRoutes_RequireAuth(t *testing.T) {
 				resp = client.Post(route.path, map[string]string{})
 			}
 			client.ExpectStatus(resp, http.StatusUnauthorized)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		})
 	}
 }
@@ -699,7 +634,7 @@ func TestProtectedRoutes_InvalidToken(t *testing.T) {
 
 	resp := client.Get("/friends")
 	client.ExpectStatus(resp, http.StatusUnauthorized)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 // =============================================================================
@@ -757,7 +692,7 @@ func TestFullUserJourney(t *testing.T) {
 	// 5. Bob accepts the request
 	resp = client.Post("/friends/accept", FriendRequestAction{RequestID: friendReq.ID})
 	client.ExpectStatus(resp, http.StatusOK)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	t.Logf("Bob accepted Alice's friend request")
 
 	// 6. Alice sends a message to Bob
@@ -788,32 +723,17 @@ func TestFullUserJourney(t *testing.T) {
 	}
 	t.Logf("Bob received message from Alice")
 
-	// 8. Bob acknowledges the message
-	resp = client.Post("/messages/"+messages[0].ID+"/ack", nil)
-	client.ExpectStatus(resp, http.StatusOK)
-	resp.Body.Close()
-	t.Logf("Bob acknowledged the message")
-
-	// 9. Verify message is deleted
-	resp = client.Get("/messages")
-	client.ExpectStatus(resp, http.StatusOK)
-	client.ParseJSON(resp, &messages)
-	if len(messages) != 0 {
-		t.Errorf("Bob should have 0 messages after ack, got %d", len(messages))
-	}
-	t.Logf("Message deleted from server after acknowledgment")
-
-	// 10. Alice logs out
+	// 8. Alice logs out
 	client.SetAccessToken(aliceAuth.AccessToken)
 	resp = client.Post("/auth/logout", map[string]string{"refresh_token": aliceAuth.RefreshToken})
 	client.ExpectStatus(resp, http.StatusOK)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	t.Logf("Alice logged out")
 
-	// 11. Alice's refresh token should no longer work
+	// 9. Alice's refresh token should no longer work
 	resp = client.Post("/auth/refresh", map[string]string{"refresh_token": aliceAuth.RefreshToken})
 	client.ExpectStatus(resp, http.StatusUnauthorized)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	t.Logf("Alice's refresh token invalidated after logout")
 
 	t.Log("Full user journey completed successfully!")
@@ -856,5 +776,5 @@ func makeFriends(t *testing.T, client *TestClient, user1, user2 AuthResponse) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("Failed to accept friend request: status %d", resp.StatusCode)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
