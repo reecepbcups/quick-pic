@@ -266,24 +266,60 @@ struct IconButton: View {
 
 // MARK: - Haptics
 
+@MainActor
 struct Haptics {
-    static func light() {
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    private static var lightGenerator: UIImpactFeedbackGenerator?
+    private static var mediumGenerator: UIImpactFeedbackGenerator?
+    private static var notificationGenerator: UINotificationFeedbackGenerator?
+
+    static func prepare() {
+        lightGenerator = UIImpactFeedbackGenerator(style: .light)
+        mediumGenerator = UIImpactFeedbackGenerator(style: .medium)
+        notificationGenerator = UINotificationFeedbackGenerator()
+        lightGenerator?.prepare()
+        mediumGenerator?.prepare()
+        notificationGenerator?.prepare()
     }
 
-    static func medium() {
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    nonisolated static func light() {
+        Task { @MainActor in
+            if lightGenerator == nil {
+                lightGenerator = UIImpactFeedbackGenerator(style: .light)
+            }
+            lightGenerator?.impactOccurred()
+        }
     }
 
-    static func heavy() {
-        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+    nonisolated static func medium() {
+        Task { @MainActor in
+            if mediumGenerator == nil {
+                mediumGenerator = UIImpactFeedbackGenerator(style: .medium)
+            }
+            mediumGenerator?.impactOccurred()
+        }
     }
 
-    static func success() {
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    nonisolated static func heavy() {
+        Task { @MainActor in
+            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        }
     }
 
-    static func error() {
-        UINotificationFeedbackGenerator().notificationOccurred(.error)
+    nonisolated static func success() {
+        Task { @MainActor in
+            if notificationGenerator == nil {
+                notificationGenerator = UINotificationFeedbackGenerator()
+            }
+            notificationGenerator?.notificationOccurred(.success)
+        }
+    }
+
+    nonisolated static func error() {
+        Task { @MainActor in
+            if notificationGenerator == nil {
+                notificationGenerator = UINotificationFeedbackGenerator()
+            }
+            notificationGenerator?.notificationOccurred(.error)
+        }
     }
 }

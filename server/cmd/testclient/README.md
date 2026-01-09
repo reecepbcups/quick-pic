@@ -40,6 +40,9 @@ go run ./cmd/testclient pending bob
 
 # Bob accepts the request
 go run ./cmd/testclient accept bob abc123-full-request-id
+
+
+go run ./cmd/testclient message alice "Hello from test client!"
 ```
 
 ### Full test flow with iOS app
