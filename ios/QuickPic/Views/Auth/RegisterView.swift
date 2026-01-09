@@ -1,3 +1,8 @@
+//
+//  RegisterView.swift
+//  QuickPic
+//
+
 import SwiftUI
 
 struct RegisterView: View {
@@ -18,117 +23,153 @@ struct RegisterView: View {
     }
 
     var body: some View {
-        VStack(spacing: 24) {
-            // Header
-            VStack(spacing: 8) {
-                Text("Create Account")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+        ZStack {
+            Color.appBackground.ignoresSafeArea()
 
-                Text("Your messages are end-to-end encrypted")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.top, 32)
+            VStack(spacing: 0) {
+                Spacer()
 
-            // Form
-            VStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    TextField("Username", text: $username)
-                        .textFieldStyle(.roundedBorder)
+                // Header
+                VStack(spacing: AppSpacing.sm) {
+                    Text("Create")
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundColor(.textPrimary)
+
+                    Text("Account")
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundColor(.textPrimary)
+
+                    Text("Your messages are end-to-end encrypted")
+                        .font(.appCaption)
+                        .foregroundColor(.textSecondary)
+                        .padding(.top, AppSpacing.xs)
+                }
+
+                Spacer()
+
+                // Form
+                VStack(spacing: AppSpacing.md) {
+                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                        AppTextField(
+                            icon: "person",
+                            placeholder: "Username",
+                            text: $username
+                        )
                         .textContentType(.username)
                         .autocapitalization(.none)
                         .autocorrectionDisabled()
 
-                    if !username.isEmpty && username.count < 3 {
-                        Text("Username must be at least 3 characters")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    SecureField("Password", text: $password)
-                        .textFieldStyle(.roundedBorder)
-                        .textContentType(.newPassword)
-
-                    if !password.isEmpty && password.count < 8 {
-                        Text("Password must be at least 8 characters")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    SecureField("Confirm Password", text: $confirmPassword)
-                        .textFieldStyle(.roundedBorder)
-                        .textContentType(.newPassword)
-
-                    if !confirmPassword.isEmpty && !passwordsMatch {
-                        Text("Passwords do not match")
-                            .font(.caption)
-                            .foregroundColor(.red)
-                    }
-                }
-
-                if let error = errorMessage {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                        .multilineTextAlignment(.center)
-                }
-
-                Button(action: register) {
-                    HStack {
-                        if isLoading {
-                            ProgressView()
-                                .tint(.black)
-                        } else {
-                            Text("Create Account")
+                        if !username.isEmpty && username.count < 3 {
+                            Text("Username must be at least 3 characters")
+                                .font(.appSmall)
+                                .foregroundColor(.pending)
+                                .padding(.leading, AppSpacing.xs)
                         }
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(isValidForm ? Color.yellow : Color.gray)
-                    .foregroundColor(.black)
-                    .cornerRadius(10)
+
+                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                        AppTextField(
+                            icon: "lock",
+                            placeholder: "Password",
+                            text: $password,
+                            isSecure: true
+                        )
+                        .textContentType(.newPassword)
+
+                        if !password.isEmpty && password.count < 8 {
+                            Text("Password must be at least 8 characters")
+                                .font(.appSmall)
+                                .foregroundColor(.pending)
+                                .padding(.leading, AppSpacing.xs)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                        AppTextField(
+                            icon: "lock",
+                            placeholder: "Confirm Password",
+                            text: $confirmPassword,
+                            isSecure: true
+                        )
+                        .textContentType(.newPassword)
+
+                        if !confirmPassword.isEmpty && !passwordsMatch {
+                            Text("Passwords do not match")
+                                .font(.appSmall)
+                                .foregroundColor(.danger)
+                                .padding(.leading, AppSpacing.xs)
+                        }
+                    }
+
+                    if let error = errorMessage {
+                        Text(error)
+                            .font(.appCaption)
+                            .foregroundColor(.danger)
+                            .multilineTextAlignment(.center)
+                    }
+
+                    Button(action: register) {
+                        HStack {
+                            if isLoading {
+                                ProgressView()
+                                    .tint(.black)
+                            } else {
+                                Text("Create Account")
+                            }
+                        }
+                    }
+                    .buttonStyle(PrimaryButtonStyle(isEnabled: isValidForm && !isLoading))
+                    .disabled(!isValidForm || isLoading)
+                    .padding(.top, AppSpacing.sm)
                 }
-                .disabled(isLoading || !isValidForm)
+                .padding(.horizontal, AppSpacing.xl)
+
+                Spacer()
+
+                // Security note
+                VStack(spacing: AppSpacing.sm) {
+                    Image(systemName: "lock.shield.fill")
+                        .font(.title2)
+                        .foregroundColor(.success)
+
+                    Text("A unique encryption key will be generated on your device. Your private key never leaves this device.")
+                        .font(.appSmall)
+                        .foregroundColor(.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, AppSpacing.xl)
+                .padding(.bottom, AppSpacing.xl)
             }
-            .padding(.horizontal, 32)
-
-            Spacer()
-
-            // Security Note
-            VStack(spacing: 8) {
-                Image(systemName: "lock.shield.fill")
-                    .font(.title2)
-                    .foregroundColor(.green)
-
-                Text("A unique encryption key will be generated on your device. Your private key never leaves this device.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(.horizontal, 32)
-            .padding(.bottom, 32)
         }
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: { dismiss() }) {
+                    Image(systemName: "arrow.left")
+                        .foregroundColor(.textPrimary)
+                }
+            }
+        }
     }
 
     private func register() {
+        Haptics.light()
         isLoading = true
         errorMessage = nil
 
         Task {
             do {
                 try await authManager.register(username: username, password: password)
+                Haptics.success()
             } catch APIError.httpError(409, _) {
                 errorMessage = "Username already exists"
+                Haptics.error()
             } catch APIError.httpError(_, let message) {
                 errorMessage = message ?? "Registration failed"
+                Haptics.error()
             } catch {
                 errorMessage = "Registration failed. Please try again."
+                Haptics.error()
             }
             isLoading = false
         }

@@ -1,3 +1,8 @@
+//
+//  LoginView.swift
+//  QuickPic
+//
+
 import SwiftUI
 
 struct LoginView: View {
@@ -10,75 +15,91 @@ struct LoginView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                Spacer()
+            ZStack {
+                Color.appBackground.ignoresSafeArea()
 
-                // Logo/Title
-                VStack(spacing: 8) {
-                    Image(systemName: "camera.fill")
-                        .font(.system(size: 60))
-                        .foregroundColor(.yellow)
+                VStack(spacing: 0) {
+                    Spacer()
 
-                    Text("QuickPic")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
+                    // Header
+                    VStack(spacing: AppSpacing.sm) {
+                        Text("Welcome")
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundColor(.textPrimary)
 
-                    Text("Ephemeral. Encrypted. Private.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
+                        Text("Back !")
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundColor(.textPrimary)
 
-                Spacer()
+                        Text("Sign in to continue")
+                            .font(.appCaption)
+                            .foregroundColor(.textSecondary)
+                            .padding(.top, AppSpacing.xs)
+                    }
 
-                // Login Form
-                VStack(spacing: 16) {
-                    TextField("Username", text: $username)
-                        .textFieldStyle(.roundedBorder)
+                    Spacer()
+
+                    // Form
+                    VStack(spacing: AppSpacing.md) {
+                        AppTextField(
+                            icon: "person",
+                            placeholder: "Username",
+                            text: $username
+                        )
                         .textContentType(.username)
                         .autocapitalization(.none)
                         .autocorrectionDisabled()
 
-                    SecureField("Password", text: $password)
-                        .textFieldStyle(.roundedBorder)
+                        AppTextField(
+                            icon: "lock",
+                            placeholder: "Password",
+                            text: $password,
+                            isSecure: true
+                        )
                         .textContentType(.password)
 
-                    if let error = errorMessage {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundColor(.red)
-                    }
+                        if let error = errorMessage {
+                            Text(error)
+                                .font(.appCaption)
+                                .foregroundColor(.danger)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, AppSpacing.xs)
+                        }
 
-                    Button(action: login) {
-                        HStack {
-                            if isLoading {
-                                ProgressView()
-                                    .tint(.black)
-                            } else {
-                                Text("Log In")
+                        Button(action: login) {
+                            HStack {
+                                if isLoading {
+                                    ProgressView()
+                                        .tint(.black)
+                                } else {
+                                    Text("Sign in")
+                                }
                             }
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.yellow)
-                        .foregroundColor(.black)
-                        .cornerRadius(10)
+                        .buttonStyle(PrimaryButtonStyle(isEnabled: canLogin))
+                        .disabled(!canLogin)
+                        .padding(.top, AppSpacing.sm)
                     }
-                    .disabled(isLoading || username.isEmpty || password.isEmpty)
-                }
-                .padding(.horizontal, 32)
+                    .padding(.horizontal, AppSpacing.xl)
 
-                Spacer()
+                    Spacer()
 
-                // Register Link
-                HStack {
-                    Text("Don't have an account?")
-                        .foregroundColor(.secondary)
-                    Button("Sign Up") {
-                        showRegister = true
+                    // Register link
+                    HStack(spacing: AppSpacing.xs) {
+                        Text("Don't have account?")
+                            .font(.appCaption)
+                            .foregroundColor(.textSecondary)
+
+                        Button("Create now") {
+                            Haptics.light()
+                            showRegister = true
+                        }
+                        .font(.appCaption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.appPrimary)
                     }
-                    .foregroundColor(.yellow)
+                    .padding(.bottom, AppSpacing.xl)
                 }
-                .padding(.bottom, 32)
             }
             .navigationDestination(isPresented: $showRegister) {
                 RegisterView()
@@ -86,19 +107,28 @@ struct LoginView: View {
         }
     }
 
+    private var canLogin: Bool {
+        !username.isEmpty && !password.isEmpty && !isLoading
+    }
+
     private func login() {
+        Haptics.light()
         isLoading = true
         errorMessage = nil
 
         Task {
             do {
                 try await authManager.login(username: username, password: password)
+                Haptics.success()
             } catch APIError.unauthorized {
                 errorMessage = "Invalid username or password"
+                Haptics.error()
             } catch APIError.httpError(_, let message) {
                 errorMessage = message ?? "Login failed"
+                Haptics.error()
             } catch {
                 errorMessage = "Login failed. Please try again."
+                Haptics.error()
             }
             isLoading = false
         }

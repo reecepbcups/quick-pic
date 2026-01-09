@@ -515,7 +515,7 @@ final class DatabaseService: @unchecked Sendable {
 
 // MARK: - Data Models
 
-struct Conversation: Identifiable {
+struct Conversation: Identifiable, Hashable {
     let friendUserID: UUID
     let friendUsername: String
     let friendPublicKey: String
@@ -524,6 +524,14 @@ struct Conversation: Identifiable {
     let createdAt: Date
 
     var id: UUID { friendUserID }
+
+    static func == (lhs: Conversation, rhs: Conversation) -> Bool {
+        lhs.friendUserID == rhs.friendUserID
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(friendUserID)
+    }
 }
 
 struct StoredMessage: Identifiable {

@@ -15,6 +15,7 @@ struct ChatView: View {
     @State private var messageText = ""
     @State private var selectedMessage: StoredMessage?
     @FocusState private var isTextFieldFocused: Bool
+    @Environment(\.dismiss) private var dismiss
 
     init(conversation: Conversation, onMessagesViewed: @escaping () -> Void) {
         self.conversation = conversation
@@ -23,55 +24,49 @@ struct ChatView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Messages list
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(viewModel.messages) { message in
-                            MessageBubble(message: message)
-                                .id(message.id)
-                                .onTapGesture {
-                                    if !message.isFromMe && !message.hasBeenViewed {
-                                        selectedMessage = message
+        ZStack {
+            Color.appBackground.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Messages list
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: AppSpacing.sm) {
+                            ForEach(viewModel.messages) { message in
+                                MessageBubble(message: message)
+                                    .id(message.id)
+                                    .onTapGesture {
+                                        if !message.isFromMe && !message.hasBeenViewed {
+                                            Haptics.light()
+                                            selectedMessage = message
+                                        }
                                     }
-                                }
+                            }
+                        }
+                        .padding(AppSpacing.md)
+                    }
+                    .onChange(of: viewModel.messages.count) { _, _ in
+                        if let lastMessage = viewModel.messages.last {
+                            withAnimation(.spring(response: 0.3)) {
+                                proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                            }
                         }
                     }
-                    .padding()
                 }
-                .onChange(of: viewModel.messages.count) { _, _ in
-                    if let lastMessage = viewModel.messages.last {
-                        withAnimation {
-                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                        }
-                    }
-                }
+
+                // Message input
+                messageInputBar
             }
-
-            Divider()
-
-            // Message input
-            HStack(spacing: 12) {
-                TextField("Message", text: $messageText)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($isTextFieldFocused)
-
-                Button(action: sendMessage) {
-                    Image(systemName: "paperplane.fill")
-                        .foregroundColor(canSend ? .yellow : .gray)
-                }
-                .disabled(!canSend)
-            }
-            .padding()
-            .background(Color(.systemBackground))
         }
         .navigationTitle(conversation.friendUsername)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Color.appBackground, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: { Task { await viewModel.refresh() } }) {
                     Image(systemName: "arrow.clockwise")
+                        .foregroundColor(.appPrimary)
                 }
             }
         }
@@ -89,12 +84,40 @@ struct ChatView: View {
         }
     }
 
+    private var messageInputBar: some View {
+        HStack(spacing: AppSpacing.sm) {
+            HStack {
+                TextField("Message", text: $messageText)
+                    .foregroundColor(.textPrimary)
+                    .focused($isTextFieldFocused)
+            }
+            .padding(.horizontal, AppSpacing.md)
+            .padding(.vertical, 12)
+            .background(Color.cardBackground)
+            .cornerRadius(AppRadius.xl)
+
+            Button(action: sendMessage) {
+                Image(systemName: "paperplane.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(canSend ? .appPrimary : .textSecondary)
+                    .frame(width: 44, height: 44)
+                    .background(canSend ? Color.appPrimary.opacity(0.15) : Color.cardBackground)
+                    .clipShape(Circle())
+            }
+            .disabled(!canSend)
+            .buttonStyle(ScaleButtonStyle())
+        }
+        .padding(AppSpacing.md)
+        .background(Color.appBackground)
+    }
+
     private var canSend: Bool {
         !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !viewModel.isSending
     }
 
     private func sendMessage() {
         guard canSend else { return }
+        Haptics.light()
 
         let text = messageText
         messageText = ""
@@ -112,73 +135,85 @@ struct MessageBubble: View {
     var body: some View {
         HStack {
             if message.isFromMe {
-                Spacer()
+                Spacer(minLength: 60)
             }
 
-            VStack(alignment: message.isFromMe ? .trailing : .leading, spacing: 4) {
+            VStack(alignment: message.isFromMe ? .trailing : .leading, spacing: AppSpacing.xs) {
                 if message.contentType == .image {
-                    // Image message - show preview or tap indicator
-                    if message.isFromMe {
-                        // Sent image - show thumbnail
-                        if let uiImage = UIImage(data: message.decryptedContent) {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxWidth: 200, maxHeight: 200)
-                                .cornerRadius(12)
-                        }
-                    } else {
-                        // Received image - show tap to view
-                        HStack {
-                            Image(systemName: message.hasBeenViewed ? "photo" : "photo.fill")
-                            Text(message.hasBeenViewed ? "Viewed" : "Tap to view")
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(message.hasBeenViewed ? Color.gray.opacity(0.3) : Color.yellow.opacity(0.3))
-                        .cornerRadius(16)
-                    }
+                    imageContent
                 } else {
-                    // Text message
-                    if message.isFromMe {
-                        if let text = String(data: message.decryptedContent, encoding: .utf8) {
-                            Text(text)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(Color.yellow)
-                                .foregroundColor(.black)
-                                .cornerRadius(16)
-                        }
-                    } else {
-                        // Received text - tap to view if not viewed
-                        if message.hasBeenViewed {
-                            if let text = String(data: message.decryptedContent, encoding: .utf8) {
-                                Text(text)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(Color.gray.opacity(0.3))
-                                    .cornerRadius(16)
-                            }
-                        } else {
-                            HStack {
-                                Image(systemName: "text.bubble.fill")
-                                Text("Tap to view")
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                            .background(Color.yellow.opacity(0.3))
-                            .cornerRadius(16)
-                        }
-                    }
+                    textContent
                 }
 
                 Text(timeAgo(message.createdAt))
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .font(.appSmall)
+                    .foregroundColor(.textSecondary)
             }
 
             if !message.isFromMe {
-                Spacer()
+                Spacer(minLength: 60)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var imageContent: some View {
+        if message.isFromMe {
+            if let uiImage = UIImage(data: message.decryptedContent) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 200, maxHeight: 200)
+                    .cornerRadius(AppRadius.md)
+            }
+        } else {
+            HStack(spacing: AppSpacing.sm) {
+                Image(systemName: message.hasBeenViewed ? "photo" : "photo.fill")
+                Text(message.hasBeenViewed ? "Viewed" : "Tap to view")
+            }
+            .font(.appCaption)
+            .foregroundColor(message.hasBeenViewed ? .textSecondary : .textPrimary)
+            .padding(.horizontal, AppSpacing.md)
+            .padding(.vertical, AppSpacing.sm)
+            .background(message.hasBeenViewed ? Color.cardBackground : Color.appPrimary.opacity(0.2))
+            .cornerRadius(AppRadius.lg)
+        }
+    }
+
+    @ViewBuilder
+    private var textContent: some View {
+        if message.isFromMe {
+            if let text = String(data: message.decryptedContent, encoding: .utf8) {
+                Text(text)
+                    .font(.appBody)
+                    .foregroundColor(.black)
+                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.vertical, AppSpacing.sm)
+                    .background(Color.appPrimary)
+                    .cornerRadius(AppRadius.lg)
+            }
+        } else {
+            if message.hasBeenViewed {
+                if let text = String(data: message.decryptedContent, encoding: .utf8) {
+                    Text(text)
+                        .font(.appBody)
+                        .foregroundColor(.textPrimary)
+                        .padding(.horizontal, AppSpacing.md)
+                        .padding(.vertical, AppSpacing.sm)
+                        .background(Color.cardBackground)
+                        .cornerRadius(AppRadius.lg)
+                }
+            } else {
+                HStack(spacing: AppSpacing.sm) {
+                    Image(systemName: "text.bubble.fill")
+                    Text("Tap to view")
+                }
+                .font(.appCaption)
+                .foregroundColor(.textPrimary)
+                .padding(.horizontal, AppSpacing.md)
+                .padding(.vertical, AppSpacing.sm)
+                .background(Color.appPrimary.opacity(0.2))
+                .cornerRadius(AppRadius.lg)
             }
         }
     }
@@ -199,18 +234,19 @@ struct MessageContentView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color.appBackground.ignoresSafeArea()
 
             if showContent {
                 contentView
             } else {
                 ProgressView()
-                    .tint(.white)
+                    .tint(.appPrimary)
             }
         }
         .onAppear {
+            Haptics.medium()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                withAnimation {
+                withAnimation(.spring(response: 0.4)) {
                     showContent = true
                 }
             }
@@ -218,6 +254,7 @@ struct MessageContentView: View {
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onEnded { _ in
+                    Haptics.light()
                     onDismiss()
                     dismiss()
                 }
@@ -234,25 +271,25 @@ struct MessageContentView: View {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFit()
-                        .cornerRadius(12)
-                        .padding()
+                        .cornerRadius(AppRadius.md)
+                        .padding(AppSpacing.md)
                 }
             } else {
                 if let text = String(data: message.decryptedContent, encoding: .utf8) {
                     Text(text)
                         .font(.title2)
-                        .foregroundColor(.white)
+                        .foregroundColor(.textPrimary)
                         .multilineTextAlignment(.center)
-                        .padding(32)
+                        .padding(AppSpacing.xl)
                 }
             }
 
             Spacer()
 
             Text("Release to close")
-                .font(.caption)
-                .foregroundColor(.gray)
-                .padding(.bottom, 32)
+                .font(.appCaption)
+                .foregroundColor(.textSecondary)
+                .padding(.bottom, AppSpacing.xl)
         }
     }
 }
@@ -272,27 +309,20 @@ class ChatViewModel: ObservableObject {
     }
 
     func loadMessages() async {
-        print("ChatView loading messages for conversation: \(conversation.friendUserID)")
         messages = db.getMessages(for: conversation.friendUserID)
-        print("Loaded \(messages.count) messages from database")
         await refresh()
     }
 
     func refresh() async {
-        // Fetch new messages from server
         do {
             let serverMessages = try await api.getMessages()
-            print("ChatView fetched \(serverMessages.count) total messages from server")
-
             let relevantMessages = serverMessages.filter { $0.fromUserID == conversation.friendUserID }
-            print("Found \(relevantMessages.count) messages for this conversation")
 
             for message in relevantMessages {
                 await processIncomingMessage(message)
             }
 
             messages = db.getMessages(for: conversation.friendUserID)
-            print("After refresh, have \(messages.count) messages")
         } catch {
             print("ChatView refresh error: \(error)")
         }
@@ -333,7 +363,6 @@ class ChatViewModel: ObservableObject {
     func markAsViewed(_ message: StoredMessage) async {
         db.markMessageAsViewed(messageID: message.id)
 
-        // Delete from server now that it's been viewed
         do {
             try await api.acknowledgeMessage(id: message.id)
             db.markMessageServerDeleted(messageID: message.id)
@@ -341,7 +370,6 @@ class ChatViewModel: ObservableObject {
             // Will retry later
         }
 
-        // Update local state
         if let index = messages.firstIndex(where: { $0.id == message.id }) {
             messages[index].hasBeenViewed = true
         }
@@ -370,7 +398,6 @@ class ChatViewModel: ObservableObject {
                 signature: signature
             )
 
-            // Save sent message locally
             let storedMessage = StoredMessage(
                 id: response.id,
                 conversationID: conversation.friendUserID,
@@ -385,7 +412,9 @@ class ChatViewModel: ObservableObject {
 
             db.saveMessage(storedMessage)
             messages = db.getMessages(for: conversation.friendUserID)
+            Haptics.success()
         } catch {
+            Haptics.error()
             print("Failed to send message: \(error)")
         }
     }
@@ -411,7 +440,6 @@ class ChatViewModel: ObservableObject {
                 signature: signature
             )
 
-            // Save sent message locally
             let storedMessage = StoredMessage(
                 id: response.id,
                 conversationID: conversation.friendUserID,
@@ -426,13 +454,14 @@ class ChatViewModel: ObservableObject {
 
             db.saveMessage(storedMessage)
             messages = db.getMessages(for: conversation.friendUserID)
+            Haptics.success()
         } catch {
+            Haptics.error()
             print("Failed to send image: \(error)")
         }
     }
 }
 
-// Make StoredMessage conform to Identifiable for ForEach
 extension StoredMessage: Hashable {
     static func == (lhs: StoredMessage, rhs: StoredMessage) -> Bool {
         lhs.id == rhs.id

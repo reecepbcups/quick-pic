@@ -11,75 +11,114 @@ import AVFoundation
 struct CameraView: View {
     @StateObject private var viewModel = CameraViewModel()
     @State private var showFriendPicker = false
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.black.ignoresSafeArea()
+        ZStack {
+            Color.appBackground.ignoresSafeArea()
 
-                if let capturedImage = viewModel.capturedImage {
-                    // Preview captured image
-                    CapturedImageView(
-                        image: capturedImage,
-                        onRetake: { viewModel.retake() },
-                        onSend: { showFriendPicker = true }
-                    )
-                } else {
-                    // Camera view
-                    CameraPreviewView(session: viewModel.session)
-                        .ignoresSafeArea()
-
-                    VStack {
-                        Spacer()
-
-                        HStack(spacing: 60) {
-                            // Flash toggle
-                            Button(action: viewModel.toggleFlash) {
-                                Image(systemName: viewModel.isFlashOn ? "bolt.fill" : "bolt.slash")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                            }
-
-                            // Capture button
-                            Button(action: viewModel.capturePhoto) {
-                                ZStack {
-                                    Circle()
-                                        .stroke(Color.white, lineWidth: 4)
-                                        .frame(width: 70, height: 70)
-
-                                    Circle()
-                                        .fill(Color.white)
-                                        .frame(width: 58, height: 58)
-                                }
-                            }
-
-                            // Switch camera
-                            Button(action: viewModel.switchCamera) {
-                                Image(systemName: "camera.rotate")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                            }
-                        }
-                        .padding(.bottom, 40)
-                    }
-                }
-            }
-            .navigationBarHidden(true)
-            .sheet(isPresented: $showFriendPicker) {
-                FriendPickerView(
-                    imageData: viewModel.capturedImageData,
-                    onSent: {
+            if let capturedImage = viewModel.capturedImage {
+                CapturedImageView(
+                    image: capturedImage,
+                    onRetake: {
+                        Haptics.light()
                         viewModel.retake()
-                        showFriendPicker = false
+                    },
+                    onSend: {
+                        Haptics.medium()
+                        showFriendPicker = true
                     }
                 )
+            } else {
+                // Camera preview
+                CameraPreviewView(session: viewModel.session)
+                    .ignoresSafeArea()
+
+                // Controls overlay
+                VStack {
+                    // Top bar with close button
+                    HStack {
+                        Button(action: {
+                            Haptics.light()
+                            dismiss()
+                        }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Color.black.opacity(0.4))
+                                .clipShape(Circle())
+                        }
+
+                        Spacer()
+                    }
+                    .padding(AppSpacing.md)
+
+                    Spacer()
+
+                    // Bottom controls
+                    HStack(spacing: 50) {
+                        // Flash toggle
+                        Button(action: {
+                            Haptics.light()
+                            viewModel.toggleFlash()
+                        }) {
+                            Image(systemName: viewModel.isFlashOn ? "bolt.fill" : "bolt.slash")
+                                .font(.system(size: 22))
+                                .foregroundColor(.white)
+                                .frame(width: 50, height: 50)
+                        }
+
+                        // Capture button
+                        Button(action: {
+                            Haptics.heavy()
+                            viewModel.capturePhoto()
+                        }) {
+                            ZStack {
+                                Circle()
+                                    .stroke(Color.white, lineWidth: 4)
+                                    .frame(width: 76, height: 76)
+
+                                Circle()
+                                    .fill(Color.white)
+                                    .frame(width: 62, height: 62)
+                            }
+                        }
+                        .buttonStyle(ScaleButtonStyle())
+
+                        // Switch camera
+                        Button(action: {
+                            Haptics.light()
+                            viewModel.switchCamera()
+                        }) {
+                            Image(systemName: "camera.rotate")
+                                .font(.system(size: 22))
+                                .foregroundColor(.white)
+                                .frame(width: 50, height: 50)
+                        }
+                    }
+                    .padding(.bottom, 50)
+                }
             }
-            .onAppear {
-                viewModel.startSession()
-            }
-            .onDisappear {
-                viewModel.stopSession()
-            }
+        }
+        .sheet(isPresented: $showFriendPicker) {
+            FriendPickerSheet(
+                imageData: viewModel.capturedImageData,
+                onSent: {
+                    viewModel.retake()
+                    showFriendPicker = false
+                    Haptics.success()
+                    dismiss()
+                }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .onAppear {
+            viewModel.startSession()
+        }
+        .onDisappear {
+            viewModel.stopSession()
         }
     }
 }
@@ -91,6 +130,8 @@ struct CapturedImageView: View {
 
     var body: some View {
         ZStack {
+            Color.appBackground.ignoresSafeArea()
+
             Image(uiImage: image)
                 .resizable()
                 .scaledToFit()
@@ -98,34 +139,48 @@ struct CapturedImageView: View {
             VStack {
                 Spacer()
 
-                HStack(spacing: 60) {
+                HStack(spacing: 80) {
+                    // Retake button
                     Button(action: onRetake) {
-                        VStack {
+                        VStack(spacing: AppSpacing.sm) {
                             Image(systemName: "xmark")
-                                .font(.title)
-                            Text("Retake")
-                                .font(.caption)
-                        }
-                        .foregroundColor(.white)
-                    }
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 56, height: 56)
+                                .background(Color.cardBackground)
+                                .clipShape(Circle())
 
-                    Button(action: onSend) {
-                        VStack {
-                            Image(systemName: "paperplane.fill")
-                                .font(.title)
-                            Text("Send")
-                                .font(.caption)
+                            Text("Retake")
+                                .font(.appCaption)
+                                .foregroundColor(.textSecondary)
                         }
-                        .foregroundColor(.yellow)
                     }
+                    .buttonStyle(ScaleButtonStyle())
+
+                    // Send button
+                    Button(action: onSend) {
+                        VStack(spacing: AppSpacing.sm) {
+                            Image(systemName: "paperplane.fill")
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundColor(.black)
+                                .frame(width: 56, height: 56)
+                                .background(Color.appPrimary)
+                                .clipShape(Circle())
+
+                            Text("Send")
+                                .font(.appCaption)
+                                .foregroundColor(.appPrimary)
+                        }
+                    }
+                    .buttonStyle(ScaleButtonStyle())
                 }
-                .padding(.bottom, 40)
+                .padding(.bottom, 50)
             }
         }
     }
 }
 
-struct FriendPickerView: View {
+struct FriendPickerSheet: View {
     let imageData: Data?
     let onSent: () -> Void
 
@@ -135,68 +190,82 @@ struct FriendPickerView: View {
     @State private var isSending = false
 
     var body: some View {
-        NavigationStack {
-            Group {
+        ZStack {
+            Color.appBackground.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Header
+                VStack(spacing: AppSpacing.sm) {
+                    Text("Send to")
+                        .font(.appTitle)
+                        .foregroundColor(.textPrimary)
+                }
+                .padding(.top, AppSpacing.lg)
+                .padding(.bottom, AppSpacing.md)
+
                 if viewModel.isLoading {
-                    ProgressView("Loading friends...")
+                    Spacer()
+                    ProgressView()
+                        .tint(.appPrimary)
+                    Spacer()
                 } else if viewModel.friends.isEmpty {
-                    VStack(spacing: 16) {
+                    Spacer()
+                    VStack(spacing: AppSpacing.md) {
                         Image(systemName: "person.2.slash")
                             .font(.system(size: 50))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.textSecondary)
+
                         Text("No friends yet")
-                            .font(.headline)
+                            .font(.appHeadline)
+                            .foregroundColor(.textPrimary)
+
                         Text("Add friends to send them photos")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .font(.appCaption)
+                            .foregroundColor(.textSecondary)
                     }
+                    Spacer()
                 } else {
-                    List(viewModel.friends) { friend in
-                        Button(action: { selectedFriend = friend }) {
-                            HStack {
-                                Circle()
-                                    .fill(Color.yellow.opacity(0.3))
-                                    .frame(width: 40, height: 40)
-                                    .overlay(
-                                        Text(friend.username.prefix(1).uppercased())
-                                            .fontWeight(.semibold)
-                                    )
-
-                                Text(friend.username)
-
-                                Spacer()
-
-                                if selectedFriend?.id == friend.id {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.yellow)
+                    ScrollView {
+                        LazyVStack(spacing: AppSpacing.sm) {
+                            ForEach(viewModel.friends) { friend in
+                                FriendPickerRow(
+                                    friend: friend,
+                                    isSelected: selectedFriend?.id == friend.id
+                                ) {
+                                    Haptics.light()
+                                    selectedFriend = friend
                                 }
+                                .padding(.horizontal, AppSpacing.md)
                             }
                         }
-                        .foregroundColor(.primary)
+                        .padding(.top, AppSpacing.sm)
                     }
                 }
-            }
-            .navigationTitle("Send to")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Send") {
-                        sendMessage()
+
+                // Send button
+                Button(action: sendMessage) {
+                    HStack {
+                        if isSending {
+                            ProgressView()
+                                .tint(.black)
+                        } else {
+                            Text("Send")
+                        }
                     }
-                    .disabled(selectedFriend == nil || isSending)
                 }
+                .buttonStyle(PrimaryButtonStyle(isEnabled: selectedFriend != nil && !isSending))
+                .disabled(selectedFriend == nil || isSending)
+                .padding(AppSpacing.md)
             }
-            .task {
-                await viewModel.loadFriends()
-            }
+        }
+        .task {
+            await viewModel.loadFriends()
         }
     }
 
     private func sendMessage() {
         guard let friend = selectedFriend, let data = imageData else { return }
+        Haptics.light()
 
         isSending = true
         Task {
@@ -204,10 +273,48 @@ struct FriendPickerView: View {
                 try await viewModel.sendImage(data, to: friend)
                 onSent()
             } catch {
+                Haptics.error()
                 print("Failed to send: \(error)")
             }
             isSending = false
         }
+    }
+}
+
+struct FriendPickerRow: View {
+    let friend: Friend
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: AppSpacing.md) {
+                StatusDot(
+                    status: .read,
+                    initial: String(friend.username.prefix(1)).uppercased()
+                )
+
+                Text(friend.username)
+                    .font(.appHeadline)
+                    .foregroundColor(.textPrimary)
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.appPrimary)
+                } else {
+                    Circle()
+                        .stroke(Color.textSecondary, lineWidth: 2)
+                        .frame(width: 24, height: 24)
+                }
+            }
+            .padding(AppSpacing.md)
+            .background(isSelected ? Color.appPrimary.opacity(0.1) : Color.cardBackground)
+            .cornerRadius(AppRadius.lg)
+        }
+        .buttonStyle(FeedRowButtonStyle())
     }
 }
 
@@ -240,7 +347,6 @@ class CameraViewModel: NSObject, ObservableObject {
         session.beginConfiguration()
         session.sessionPreset = .photo
 
-        // Add camera input
         guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: currentCameraPosition),
               let input = try? AVCaptureDeviceInput(device: camera) else {
             session.commitConfiguration()
@@ -277,11 +383,8 @@ class CameraViewModel: NSObject, ObservableObject {
         currentCameraPosition = currentCameraPosition == .back ? .front : .back
 
         session.beginConfiguration()
-
-        // Remove existing input
         session.inputs.forEach { session.removeInput($0) }
 
-        // Add new input
         guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: currentCameraPosition),
               let input = try? AVCaptureDeviceInput(device: camera) else {
             session.commitConfiguration()
@@ -303,7 +406,6 @@ extension CameraViewModel: AVCapturePhotoCaptureDelegate {
             return
         }
 
-        // Convert to PNG for lossless quality
         if let pngData = image.pngData() {
             Task { @MainActor in
                 self.capturedImage = image
@@ -350,7 +452,6 @@ class FriendPickerViewModel: ObservableObject {
             signature: signature
         )
 
-        // Save sent message locally to the conversation
         let storedMessage = StoredMessage(
             id: response.id,
             conversationID: friend.userID,
@@ -364,8 +465,6 @@ class FriendPickerViewModel: ObservableObject {
         )
 
         db.saveMessage(storedMessage)
-
-        // Ensure conversation exists
         _ = db.getOrCreateConversation(for: friend)
     }
 }

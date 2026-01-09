@@ -1,6 +1,11 @@
+//
+//  AddFriendView.swift
+//  QuickPic
+//
+
 import SwiftUI
 
-struct AddFriendView: View {
+struct AddFriendSheet: View {
     @Environment(\.dismiss) var dismiss
     @State private var username = ""
     @State private var isLoading = false
@@ -10,46 +15,50 @@ struct AddFriendView: View {
     var onRequestSent: () -> Void
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 24) {
+        ZStack {
+            Color.appBackground.ignoresSafeArea()
+
+            VStack(spacing: AppSpacing.lg) {
                 // Header
-                VStack(spacing: 8) {
-                    Image(systemName: "person.badge.plus")
-                        .font(.system(size: 50))
-                        .foregroundColor(.yellow)
+                VStack(spacing: AppSpacing.sm) {
+                    Text("Add Friend")
+                        .font(.appTitle)
+                        .foregroundColor(.textPrimary)
 
-                    Text("Add a Friend")
-                        .font(.title2)
-                        .fontWeight(.bold)
-
-                    Text("Enter their username to send a friend request")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
+                    Text("Enter their username to send a request")
+                        .font(.appCaption)
+                        .foregroundColor(.textSecondary)
                 }
-                .padding(.top, 32)
+                .padding(.top, AppSpacing.lg)
 
                 // Form
-                VStack(spacing: 16) {
-                    TextField("Username", text: $username)
-                        .textFieldStyle(.roundedBorder)
-                        .autocapitalization(.none)
-                        .autocorrectionDisabled()
+                VStack(spacing: AppSpacing.md) {
+                    AppTextField(
+                        icon: "at",
+                        placeholder: "Username",
+                        text: $username
+                    )
+                    .autocapitalization(.none)
+                    .autocorrectionDisabled()
 
                     if let error = errorMessage {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundColor(.red)
+                        HStack {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundColor(.danger)
+                            Text(error)
+                                .foregroundColor(.danger)
+                        }
+                        .font(.appCaption)
                     }
 
                     if let success = successMessage {
                         HStack {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
+                                .foregroundColor(.success)
                             Text(success)
-                                .foregroundColor(.green)
+                                .foregroundColor(.success)
                         }
-                        .font(.caption)
+                        .font(.appCaption)
                     }
 
                     Button(action: sendRequest) {
@@ -61,30 +70,20 @@ struct AddFriendView: View {
                                 Text("Send Request")
                             }
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(username.isEmpty ? Color.gray : Color.yellow)
-                        .foregroundColor(.black)
-                        .cornerRadius(10)
                     }
-                    .disabled(isLoading || username.isEmpty)
+                    .buttonStyle(PrimaryButtonStyle(isEnabled: !username.isEmpty && !isLoading))
+                    .disabled(username.isEmpty || isLoading)
+                    .padding(.top, AppSpacing.sm)
                 }
-                .padding(.horizontal, 32)
+                .padding(.horizontal, AppSpacing.lg)
 
                 Spacer()
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
             }
         }
     }
 
     private func sendRequest() {
+        Haptics.light()
         isLoading = true
         errorMessage = nil
         successMessage = nil
@@ -92,20 +91,24 @@ struct AddFriendView: View {
         Task {
             do {
                 _ = try await APIService.shared.sendFriendRequest(to: username)
-                successMessage = "Friend request sent to @\(username)"
+                successMessage = "Request sent to @\(username)"
                 onRequestSent()
+                Haptics.success()
 
-                // Dismiss after a short delay
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
                 dismiss()
             } catch APIError.notFound {
                 errorMessage = "User not found"
+                Haptics.error()
             } catch APIError.httpError(409, _) {
-                errorMessage = "Request already sent or already friends"
+                errorMessage = "Already sent or already friends"
+                Haptics.error()
             } catch APIError.httpError(400, let message) {
                 errorMessage = message ?? "Cannot add this user"
+                Haptics.error()
             } catch {
                 errorMessage = "Failed to send request"
+                Haptics.error()
             }
             isLoading = false
         }
@@ -113,5 +116,5 @@ struct AddFriendView: View {
 }
 
 #Preview {
-    AddFriendView(onRequestSent: {})
+    AddFriendSheet(onRequestSent: {})
 }
