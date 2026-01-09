@@ -8,6 +8,7 @@ import (
 
 type User struct {
 	ID           uuid.UUID `json:"id"`
+	UserNumber   int64     `json:"user_number"`
 	Username     string    `json:"username"`
 	PasswordHash string    `json:"-"` // Never expose in JSON
 	PublicKey    string    `json:"public_key"`
@@ -16,16 +17,18 @@ type User struct {
 }
 
 type UserPublic struct {
-	ID        uuid.UUID `json:"id"`
-	Username  string    `json:"username"`
-	PublicKey string    `json:"public_key"`
+	ID         uuid.UUID `json:"id"`
+	UserNumber int64     `json:"user_number"`
+	Username   string    `json:"username"`
+	PublicKey  string    `json:"public_key"`
 }
 
 func (u *User) ToPublic() UserPublic {
 	return UserPublic{
-		ID:        u.ID,
-		Username:  u.Username,
-		PublicKey: u.PublicKey,
+		ID:         u.ID,
+		UserNumber: u.UserNumber,
+		Username:   u.Username,
+		PublicKey:  u.PublicKey,
 	}
 }
 

@@ -2,11 +2,13 @@ import Foundation
 
 struct User: Codable, Identifiable {
     let id: UUID
+    let userNumber: Int64
     let username: String
     let publicKey: String
 
     enum CodingKeys: String, CodingKey {
         case id
+        case userNumber = "user_number"
         case username
         case publicKey = "public_key"
     }

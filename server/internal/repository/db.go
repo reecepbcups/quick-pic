@@ -36,6 +36,7 @@ func (db *DB) Migrate() error {
 	migrations := []string{
 		`CREATE TABLE IF NOT EXISTS users (
 			id TEXT PRIMARY KEY,
+			user_number INTEGER UNIQUE,
 			username TEXT UNIQUE NOT NULL,
 			password_hash TEXT NOT NULL,
 			public_key TEXT NOT NULL,

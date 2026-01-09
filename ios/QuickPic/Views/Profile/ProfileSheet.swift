@@ -32,7 +32,7 @@ struct ProfileSheet: View {
                         .font(.appTitle)
                         .foregroundColor(.textPrimary)
 
-                    Text("QuickPic User")
+                    Text("QuickPic User #\(authManager.currentUser?.userNumber ?? 0)")
                         .font(.appCaption)
                         .foregroundColor(.textSecondary)
                 }

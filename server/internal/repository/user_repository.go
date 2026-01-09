@@ -25,13 +25,25 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	user.CreatedAt = time.Now()
 	user.UpdatedAt = time.Now()
 
+	// Get next user number
+	var maxUserNumber sql.NullInt64
+	err := r.db.QueryRowContext(ctx, "SELECT MAX(user_number) FROM users").Scan(&maxUserNumber)
+	if err != nil {
+		return err
+	}
+	if maxUserNumber.Valid {
+		user.UserNumber = maxUserNumber.Int64 + 1
+	} else {
+		user.UserNumber = 1
+	}
+
 	query := `
-		INSERT INTO users (id, username, password_hash, public_key, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO users (id, user_number, username, password_hash, public_key, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
 
-	_, err := r.db.ExecContext(ctx, query,
-		user.ID.String(), user.Username, user.PasswordHash, user.PublicKey, user.CreatedAt, user.UpdatedAt)
+	_, err = r.db.ExecContext(ctx, query,
+		user.ID.String(), user.UserNumber, user.Username, user.PasswordHash, user.PublicKey, user.CreatedAt, user.UpdatedAt)
 
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint") || strings.Contains(err.Error(), "unique constraint") {
@@ -45,14 +57,14 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
-		SELECT id, username, password_hash, public_key, created_at, updated_at
+		SELECT id, user_number, username, password_hash, public_key, created_at, updated_at
 		FROM users WHERE id = ?
 	`
 
 	var user models.User
 	var idStr string
 	err := r.db.QueryRowContext(ctx, query, id.String()).Scan(
-		&idStr, &user.Username, &user.PasswordHash, &user.PublicKey, &user.CreatedAt, &user.UpdatedAt)
+		&idStr, &user.UserNumber, &user.Username, &user.PasswordHash, &user.PublicKey, &user.CreatedAt, &user.UpdatedAt)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, models.ErrUserNotFound
@@ -67,14 +79,14 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 
 func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*models.User, error) {
 	query := `
-		SELECT id, username, password_hash, public_key, created_at, updated_at
+		SELECT id, user_number, username, password_hash, public_key, created_at, updated_at
 		FROM users WHERE username = ?
 	`
 
 	var user models.User
 	var idStr string
 	err := r.db.QueryRowContext(ctx, query, strings.ToLower(username)).Scan(
-		&idStr, &user.Username, &user.PasswordHash, &user.PublicKey, &user.CreatedAt, &user.UpdatedAt)
+		&idStr, &user.UserNumber, &user.Username, &user.PasswordHash, &user.PublicKey, &user.CreatedAt, &user.UpdatedAt)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, models.ErrUserNotFound
