@@ -43,6 +43,7 @@ final class DatabaseService: @unchecked Sendable {
                 friend_user_id TEXT PRIMARY KEY,
                 friend_username TEXT NOT NULL,
                 friend_public_key TEXT NOT NULL,
+                friend_since TEXT NOT NULL DEFAULT '',
                 last_message_at TEXT,
                 unread_count INTEGER DEFAULT 0,
                 created_at TEXT NOT NULL
@@ -56,9 +57,9 @@ final class DatabaseService: @unchecked Sendable {
                 conversation_id TEXT NOT NULL,
                 content_type TEXT NOT NULL,
                 decrypted_content BLOB NOT NULL,
+                encrypted_content BLOB,
                 is_from_me INTEGER NOT NULL,
                 has_been_viewed INTEGER DEFAULT 0,
-                server_deleted INTEGER DEFAULT 0,
                 created_at TEXT NOT NULL,
                 received_at TEXT NOT NULL,
                 FOREIGN KEY (conversation_id) REFERENCES conversations(friend_user_id)
@@ -74,6 +75,10 @@ final class DatabaseService: @unchecked Sendable {
         executeSQL(createConversationsTable)
         executeSQL(createMessagesTable)
         executeSQL(createIndex)
+
+        // Add new columns for existing databases (migrations) - silently ignore if already exists
+        executeMigration("ALTER TABLE conversations ADD COLUMN friend_since TEXT NOT NULL DEFAULT '';")
+        executeMigration("ALTER TABLE messages ADD COLUMN encrypted_content BLOB;")
     }
 
     private func executeSQL(_ sql: String) {
@@ -88,6 +93,15 @@ final class DatabaseService: @unchecked Sendable {
         sqlite3_finalize(statement)
     }
 
+    private func executeMigration(_ sql: String) {
+        // Silently execute migration - ignore errors (e.g., duplicate column)
+        var statement: OpaquePointer?
+        if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+            sqlite3_step(statement)
+        }
+        sqlite3_finalize(statement)
+    }
+
     // MARK: - Conversation Operations
 
     func getOrCreateConversation(for friend: Friend) -> Conversation {
@@ -96,10 +110,11 @@ final class DatabaseService: @unchecked Sendable {
             let friendIDString = friend.userID.uuidString
             let friendUsername = friend.username
             let friendPublicKey = friend.publicKey
+            let friendSinceString = ISO8601DateFormatter().string(from: friend.since)
             let nowString = ISO8601DateFormatter().string(from: Date())
 
             // Check if conversation exists
-            let selectSQL = "SELECT * FROM conversations WHERE friend_user_id = ?;"
+            let selectSQL = "SELECT friend_user_id, friend_username, friend_public_key, friend_since, last_message_at, unread_count, created_at FROM conversations WHERE friend_user_id = ?;"
             var statement: OpaquePointer?
 
             if sqlite3_prepare_v2(db, selectSQL, -1, &statement, nil) == SQLITE_OK {
@@ -117,22 +132,25 @@ final class DatabaseService: @unchecked Sendable {
 
             // Create new conversation
             let insertSQL = """
-                INSERT OR REPLACE INTO conversations (friend_user_id, friend_username, friend_public_key, created_at, unread_count)
-                VALUES (?, ?, ?, ?, 0);
+                INSERT OR REPLACE INTO conversations (friend_user_id, friend_username, friend_public_key, friend_since, created_at, unread_count)
+                VALUES (?, ?, ?, ?, ?, 0);
             """
 
             if sqlite3_prepare_v2(db, insertSQL, -1, &statement, nil) == SQLITE_OK {
                 friendIDString.withCString { id in
                     friendUsername.withCString { name in
                         friendPublicKey.withCString { key in
-                            nowString.withCString { now in
-                                sqlite3_bind_text(statement, 1, id, -1, nil)
-                                sqlite3_bind_text(statement, 2, name, -1, nil)
-                                sqlite3_bind_text(statement, 3, key, -1, nil)
-                                sqlite3_bind_text(statement, 4, now, -1, nil)
-                                let result = sqlite3_step(statement)
-                                if result != SQLITE_DONE {
-                                    print("Failed to insert conversation: \(result)")
+                            friendSinceString.withCString { since in
+                                nowString.withCString { now in
+                                    sqlite3_bind_text(statement, 1, id, -1, nil)
+                                    sqlite3_bind_text(statement, 2, name, -1, nil)
+                                    sqlite3_bind_text(statement, 3, key, -1, nil)
+                                    sqlite3_bind_text(statement, 4, since, -1, nil)
+                                    sqlite3_bind_text(statement, 5, now, -1, nil)
+                                    let result = sqlite3_step(statement)
+                                    if result != SQLITE_DONE {
+                                        print("Failed to insert conversation: \(result)")
+                                    }
                                 }
                             }
                         }
@@ -147,6 +165,7 @@ final class DatabaseService: @unchecked Sendable {
                 friendUserID: friend.userID,
                 friendUsername: friend.username,
                 friendPublicKey: friend.publicKey,
+                friendSince: friend.since,
                 lastMessageAt: nil,
                 unreadCount: 0,
                 createdAt: Date()
@@ -159,7 +178,8 @@ final class DatabaseService: @unchecked Sendable {
             var conversations: [Conversation] = []
             // Order by last_message_at with NULLs at end, then by created_at
             let sql = """
-                SELECT * FROM conversations
+                SELECT friend_user_id, friend_username, friend_public_key, friend_since, last_message_at, unread_count, created_at
+                FROM conversations
                 ORDER BY
                     CASE WHEN last_message_at IS NULL THEN 1 ELSE 0 END,
                     last_message_at DESC,
@@ -239,9 +259,10 @@ final class DatabaseService: @unchecked Sendable {
         let friendUserIDStr = String(cString: sqlite3_column_text(statement, 0))
         let friendUsername = String(cString: sqlite3_column_text(statement, 1))
         let friendPublicKey = String(cString: sqlite3_column_text(statement, 2))
-        let lastMessageAtStr = sqlite3_column_text(statement, 3).map { String(cString: $0) }
-        let unreadCount = Int(sqlite3_column_int(statement, 4))
-        let createdAtStr = String(cString: sqlite3_column_text(statement, 5))
+        let friendSinceStr = sqlite3_column_text(statement, 3).map { String(cString: $0) } ?? ""
+        let lastMessageAtStr = sqlite3_column_text(statement, 4).map { String(cString: $0) }
+        let unreadCount = Int(sqlite3_column_int(statement, 5))
+        let createdAtStr = String(cString: sqlite3_column_text(statement, 6))
 
         let formatter = ISO8601DateFormatter()
 
@@ -249,6 +270,7 @@ final class DatabaseService: @unchecked Sendable {
             friendUserID: UUID(uuidString: friendUserIDStr) ?? UUID(),
             friendUsername: friendUsername,
             friendPublicKey: friendPublicKey,
+            friendSince: formatter.date(from: friendSinceStr) ?? Date(),
             lastMessageAt: lastMessageAtStr.flatMap { formatter.date(from: $0) },
             unreadCount: unreadCount,
             createdAt: formatter.date(from: createdAtStr) ?? Date()
@@ -268,7 +290,7 @@ final class DatabaseService: @unchecked Sendable {
         dbQueue.sync {
             let sql = """
                 INSERT OR REPLACE INTO messages
-                (id, conversation_id, content_type, decrypted_content, is_from_me, has_been_viewed, server_deleted, created_at, received_at)
+                (id, conversation_id, content_type, decrypted_content, encrypted_content, is_from_me, has_been_viewed, created_at, received_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
             """
             var statement: OpaquePointer?
@@ -283,9 +305,13 @@ final class DatabaseService: @unchecked Sendable {
                                     sqlite3_bind_text(statement, 2, convID, -1, nil)
                                     sqlite3_bind_text(statement, 3, contentType, -1, nil)
                                     sqlite3_bind_blob(statement, 4, (message.decryptedContent as NSData).bytes, Int32(message.decryptedContent.count), nil)
-                                    sqlite3_bind_int(statement, 5, message.isFromMe ? 1 : 0)
-                                    sqlite3_bind_int(statement, 6, message.hasBeenViewed ? 1 : 0)
-                                    sqlite3_bind_int(statement, 7, message.serverDeleted ? 1 : 0)
+                                    if let encryptedContent = message.encryptedContent {
+                                        sqlite3_bind_blob(statement, 5, (encryptedContent as NSData).bytes, Int32(encryptedContent.count), nil)
+                                    } else {
+                                        sqlite3_bind_null(statement, 5)
+                                    }
+                                    sqlite3_bind_int(statement, 6, message.isFromMe ? 1 : 0)
+                                    sqlite3_bind_int(statement, 7, message.hasBeenViewed ? 1 : 0)
                                     sqlite3_bind_text(statement, 8, createdAt, -1, nil)
                                     sqlite3_bind_text(statement, 9, receivedAt, -1, nil)
 
@@ -315,7 +341,8 @@ final class DatabaseService: @unchecked Sendable {
             var messages: [StoredMessage] = []
             let conversationIDString = conversationID.uuidString
             let sql = """
-                SELECT * FROM messages
+                SELECT id, conversation_id, content_type, decrypted_content, encrypted_content, is_from_me, has_been_viewed, created_at, received_at
+                FROM messages
                 WHERE conversation_id = ?
                 ORDER BY created_at ASC
                 LIMIT ? OFFSET ?;
@@ -345,7 +372,8 @@ final class DatabaseService: @unchecked Sendable {
         dbQueue.sync {
             var messages: [StoredMessage] = []
             let sql = """
-                SELECT * FROM messages
+                SELECT id, conversation_id, content_type, decrypted_content, encrypted_content, is_from_me, has_been_viewed, created_at, received_at
+                FROM messages
                 WHERE conversation_id = ? AND has_been_viewed = 0 AND is_from_me = 0
                 ORDER BY created_at ASC;
             """
@@ -377,42 +405,6 @@ final class DatabaseService: @unchecked Sendable {
                 }
             }
             sqlite3_finalize(statement)
-        }
-    }
-
-    func markMessageServerDeleted(messageID: UUID) {
-        let messageIDString = messageID.uuidString
-
-        dbQueue.sync {
-            let sql = "UPDATE messages SET server_deleted = 1 WHERE id = ?;"
-            var statement: OpaquePointer?
-
-            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
-                messageIDString.withCString { idStr in
-                    sqlite3_bind_text(statement, 1, idStr, -1, nil)
-                    sqlite3_step(statement)
-                }
-            }
-            sqlite3_finalize(statement)
-        }
-    }
-
-    func getMessagesNeedingServerDeletion() -> [StoredMessage] {
-        dbQueue.sync {
-            var messages: [StoredMessage] = []
-            let sql = """
-                SELECT * FROM messages
-                WHERE has_been_viewed = 1 AND server_deleted = 0 AND is_from_me = 0;
-            """
-            var statement: OpaquePointer?
-
-            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
-                while sqlite3_step(statement) == SQLITE_ROW {
-                    messages.append(messageFromStatement(statement))
-                }
-            }
-            sqlite3_finalize(statement)
-            return messages
         }
     }
 
@@ -462,9 +454,15 @@ final class DatabaseService: @unchecked Sendable {
         let contentLength = sqlite3_column_bytes(statement, 3)
         let content = Data(bytes: contentBytes!, count: Int(contentLength))
 
-        let isFromMe = sqlite3_column_int(statement, 4) == 1
-        let hasBeenViewed = sqlite3_column_int(statement, 5) == 1
-        let serverDeleted = sqlite3_column_int(statement, 6) == 1
+        // Read encrypted content (column 4) - may be NULL
+        var encryptedContent: Data? = nil
+        if let encryptedBytes = sqlite3_column_blob(statement, 4) {
+            let encryptedLength = sqlite3_column_bytes(statement, 4)
+            encryptedContent = Data(bytes: encryptedBytes, count: Int(encryptedLength))
+        }
+
+        let isFromMe = sqlite3_column_int(statement, 5) == 1
+        let hasBeenViewed = sqlite3_column_int(statement, 6) == 1
         let createdAtStr = String(cString: sqlite3_column_text(statement, 7))
         let receivedAtStr = String(cString: sqlite3_column_text(statement, 8))
 
@@ -473,9 +471,9 @@ final class DatabaseService: @unchecked Sendable {
             conversationID: UUID(uuidString: conversationIDStr) ?? UUID(),
             contentType: ContentType(rawValue: contentTypeStr) ?? .text,
             decryptedContent: content,
+            encryptedContent: encryptedContent,
             isFromMe: isFromMe,
             hasBeenViewed: hasBeenViewed,
-            serverDeleted: serverDeleted,
             createdAt: formatter.date(from: createdAtStr) ?? Date(),
             receivedAt: formatter.date(from: receivedAtStr) ?? Date()
         )
@@ -519,6 +517,7 @@ struct Conversation: Identifiable, Hashable {
     let friendUserID: UUID
     let friendUsername: String
     let friendPublicKey: String
+    let friendSince: Date
     let lastMessageAt: Date?
     var unreadCount: Int
     let createdAt: Date
@@ -539,9 +538,9 @@ struct StoredMessage: Identifiable {
     let conversationID: UUID
     let contentType: ContentType
     let decryptedContent: Data
+    let encryptedContent: Data?
     let isFromMe: Bool
     var hasBeenViewed: Bool
-    var serverDeleted: Bool
     let createdAt: Date
     let receivedAt: Date
 }

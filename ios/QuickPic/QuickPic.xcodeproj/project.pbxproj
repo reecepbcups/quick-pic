@@ -16,7 +16,6 @@
 		596BAAB0423F7CE9A8BD3DC9 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BC41E49852CED4C49037393 /* Message.swift */; };
 		6AC42FB5B1FEB0EA492AF263 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9C15ACDAA5499817F22936 /* User.swift */; };
 		AA11BB22CC33DD44EE55FF66 /* DatabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF67 /* DatabaseService.swift */; };
-		BB22CC33DD44EE55FF66AA11 /* SyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB22CC33DD44EE55FF66AA12 /* SyncService.swift */; };
 		C524D1EC2DC725CB56830C94 /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9304D496CE3F57AFCCB806EC /* AuthManager.swift */; };
 		CC33DD44EE55FF66AA11BB22 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC33DD44EE55FF66AA11BB23 /* ChatView.swift */; };
 		D4AE99B4D7CDFFDC57D6A5A2 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24B12AE56690A3798E7767E6 /* APIService.swift */; };
@@ -39,7 +38,6 @@
 		A7B6417DD8424D474A602836 /* QuickPicApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickPicApp.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF67 /* DatabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseService.swift; sourceTree = "<group>"; };
 		B54B3CBDBFD7296B74C345AF /* CameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
-		BB22CC33DD44EE55FF66AA12 /* SyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncService.swift; sourceTree = "<group>"; };
 		C948F390B54B0405808847F4 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
 		CC33DD44EE55FF66AA11BB23 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		DDADE1FBA7939FCC757BAC73 /* QuickPic.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = QuickPic.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -59,7 +57,6 @@
 				AA11BB22CC33DD44EE55FF67 /* DatabaseService.swift */,
 				C948F390B54B0405808847F4 /* KeychainService.swift */,
 				0951B9B13D0BBAB7F521813D /* MessageCacheService.swift */,
-				BB22CC33DD44EE55FF66AA12 /* SyncService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -231,7 +228,6 @@
 				AABB11223344556677889902 /* ProfileSheet.swift in Sources */,
 				0F7AC71555D953F78DD72BCA /* QuickPicApp.swift in Sources */,
 				D9D8ECF29ACA9D5B3D81DAD6 /* RegisterView.swift in Sources */,
-				BB22CC33DD44EE55FF66AA11 /* SyncService.swift in Sources */,
 				6AC42FB5B1FEB0EA492AF263 /* User.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

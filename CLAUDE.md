@@ -1,0 +1,1 @@
+- Always update the ios/QuickPic/QuickPic.xcodeproj/project.pbxproj if you add or remove any swift files

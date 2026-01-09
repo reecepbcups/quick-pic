@@ -126,10 +126,6 @@ final class APIService: @unchecked Sendable {
         try await get("/messages", authenticated: true)
     }
 
-    func acknowledgeMessage(id: UUID) async throws {
-        let _: EmptyResponse = try await post("/messages/\(id.uuidString)/ack", body: EmptyRequest(), authenticated: true)
-    }
-
     // MARK: - Private Helpers
 
     private func get<T: Decodable>(_ path: String, authenticated: Bool = false) async throws -> T {

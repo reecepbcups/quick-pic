@@ -69,7 +69,6 @@ func SetupRoutesWithRepo(
 		{
 			messages.POST("", messageHandler.SendMessage)
 			messages.GET("", messageHandler.GetMessages)
-			messages.POST("/:id/ack", messageHandler.AcknowledgeMessage)
 		}
 	}
 }

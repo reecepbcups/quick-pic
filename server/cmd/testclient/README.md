@@ -17,7 +17,7 @@ A CLI tool to test messaging, encryption, and friend management with the QuickPi
 | `pending <username>` | List pending incoming friend requests |
 | `accept <username> <request_id>` | Accept a friend request |
 | `status <username>` | Check friend list and friendship status |
-| `message <username> <message>` | Send an encrypted message (requires friendship) |
+| `message --from <user> --to <user> <msg>` | Send an encrypted message (requires friendship) |
 | `receive <username>` | Receive and decrypt incoming messages |
 | `debug` | Test encryption/decryption locally |
 
@@ -29,20 +29,20 @@ A CLI tool to test messaging, encryption, and friend management with the QuickPi
 cd server
 
 # Create two test accounts
-go run ./cmd/testclient register alice
+go run ./cmd/testclient register maddie
 # go run ./cmd/testclient register bob
 
-go run ./cmd/testclient friend alice reecepbcups
+go run ./cmd/testclient friend maddie reecepbcups
 
-# Bob checks pending requests
-go run ./cmd/testclient pending bob
-# Output: ID: abc123... | From: alice | At: 2024-01-08...
+# reecepbcups checks pending requests (or accept in iOS app)
+go run ./cmd/testclient pending maddie
+# Output: ID: abc123... | From: maddie | At: 2024-01-08...
 
-# Bob accepts the request
-go run ./cmd/testclient accept bob abc123-full-request-id
+# reecepbcups accepts the request
+go run ./cmd/testclient accept reecepbcups abc123-full-request-id
 
-
-go run ./cmd/testclient message alice "Hello from test client!"
+# Send a message from maddie to reecepbcups
+go run ./cmd/testclient message --from maddie --to reecepbcups "Hello from test client!"
 ```
 
 ### Full test flow with iOS app
@@ -56,8 +56,8 @@ go run ./cmd/testclient setup testbot
 # 3. Check friendship status
 go run ./cmd/testclient status testbot
 
-# 4. Send encrypted message
-go run ./cmd/testclient message testbot "Hello from test client!"
+# 4. Send encrypted message (testbot -> reecepbcups)
+go run ./cmd/testclient message --from testbot --to reecepbcups "Hello from test client!"
 
 # 5. Check iOS app for the decrypted message
 
@@ -80,8 +80,12 @@ go run ./cmd/testclient pending user2
 go run ./cmd/testclient accept user2 <request_id>
 
 # Now they can message each other
-go run ./cmd/testclient message user1 "Hello user2!"
+go run ./cmd/testclient message --from user1 --to user2 "Hello user2!"
 go run ./cmd/testclient receive user2
+
+# user2 replies
+go run ./cmd/testclient message --from user2 --to user1 "Hey user1!"
+go run ./cmd/testclient receive user1
 ```
 
 ## Credentials

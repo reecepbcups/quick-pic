@@ -13,9 +13,11 @@ struct ChatView: View {
 
     @StateObject private var viewModel: ChatViewModel
     @State private var messageText = ""
-    @State private var selectedMessage: StoredMessage?
+    @State private var debugMessage: StoredMessage?
     @FocusState private var isTextFieldFocused: Bool
     @Environment(\.dismiss) private var dismiss
+
+    private let refreshTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
 
     init(conversation: Conversation, onMessagesViewed: @escaping () -> Void) {
         self.conversation = conversation
@@ -35,11 +37,9 @@ struct ChatView: View {
                             ForEach(viewModel.messages) { message in
                                 MessageBubble(message: message)
                                     .id(message.id)
-                                    .onTapGesture {
-                                        if !message.isFromMe && !message.hasBeenViewed {
-                                            Haptics.light()
-                                            selectedMessage = message
-                                        }
+                                    .onLongPressGesture {
+                                        Haptics.medium()
+                                        debugMessage = message
                                     }
                             }
                         }
@@ -70,17 +70,19 @@ struct ChatView: View {
                 }
             }
         }
-        .fullScreenCover(item: $selectedMessage) { message in
-            MessageContentView(message: message) {
-                Task {
-                    await viewModel.markAsViewed(message)
-                }
-                selectedMessage = nil
-            }
-        }
         .task {
             await viewModel.loadMessages()
             onMessagesViewed()
+        }
+        .onReceive(refreshTimer) { _ in
+            Task {
+                await viewModel.refresh()
+            }
+        }
+        .sheet(item: $debugMessage) { message in
+            MessageDebugSheet(message: message)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -158,63 +160,25 @@ struct MessageBubble: View {
 
     @ViewBuilder
     private var imageContent: some View {
-        if message.isFromMe {
-            if let uiImage = UIImage(data: message.decryptedContent) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: 200, maxHeight: 200)
-                    .cornerRadius(AppRadius.md)
-            }
-        } else {
-            HStack(spacing: AppSpacing.sm) {
-                Image(systemName: message.hasBeenViewed ? "photo" : "photo.fill")
-                Text(message.hasBeenViewed ? "Viewed" : "Tap to view")
-            }
-            .font(.appCaption)
-            .foregroundColor(message.hasBeenViewed ? .textSecondary : .textPrimary)
-            .padding(.horizontal, AppSpacing.md)
-            .padding(.vertical, AppSpacing.sm)
-            .background(message.hasBeenViewed ? Color.cardBackground : Color.appPrimary.opacity(0.2))
-            .cornerRadius(AppRadius.lg)
+        if let uiImage = UIImage(data: message.decryptedContent) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 200, maxHeight: 200)
+                .cornerRadius(AppRadius.md)
         }
     }
 
     @ViewBuilder
     private var textContent: some View {
-        if message.isFromMe {
-            if let text = String(data: message.decryptedContent, encoding: .utf8) {
-                Text(text)
-                    .font(.appBody)
-                    .foregroundColor(.black)
-                    .padding(.horizontal, AppSpacing.md)
-                    .padding(.vertical, AppSpacing.sm)
-                    .background(Color.appPrimary)
-                    .cornerRadius(AppRadius.lg)
-            }
-        } else {
-            if message.hasBeenViewed {
-                if let text = String(data: message.decryptedContent, encoding: .utf8) {
-                    Text(text)
-                        .font(.appBody)
-                        .foregroundColor(.textPrimary)
-                        .padding(.horizontal, AppSpacing.md)
-                        .padding(.vertical, AppSpacing.sm)
-                        .background(Color.cardBackground)
-                        .cornerRadius(AppRadius.lg)
-                }
-            } else {
-                HStack(spacing: AppSpacing.sm) {
-                    Image(systemName: "text.bubble.fill")
-                    Text("Tap to view")
-                }
-                .font(.appCaption)
-                .foregroundColor(.textPrimary)
+        if let text = String(data: message.decryptedContent, encoding: .utf8) {
+            Text(text)
+                .font(.appBody)
+                .foregroundColor(message.isFromMe ? .black : .textPrimary)
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.vertical, AppSpacing.sm)
-                .background(Color.appPrimary.opacity(0.2))
+                .background(message.isFromMe ? Color.appPrimary : Color.cardBackground)
                 .cornerRadius(AppRadius.lg)
-            }
         }
     }
 
@@ -225,71 +189,108 @@ struct MessageBubble: View {
     }
 }
 
-struct MessageContentView: View {
-    let message: StoredMessage
-    let onDismiss: () -> Void
+// MARK: - Message Debug Sheet
 
-    @State private var showContent = false
+struct MessageDebugSheet: View {
+    let message: StoredMessage
     @Environment(\.dismiss) private var dismiss
 
-    var body: some View {
-        ZStack {
-            Color.appBackground.ignoresSafeArea()
-
-            if showContent {
-                contentView
-            } else {
-                ProgressView()
-                    .tint(.appPrimary)
-            }
-        }
-        .onAppear {
-            Haptics.medium()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                withAnimation(.spring(response: 0.4)) {
-                    showContent = true
-                }
-            }
-        }
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onEnded { _ in
-                    Haptics.light()
-                    onDismiss()
-                    dismiss()
-                }
-        )
+    private var isoTimestamp: String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: message.createdAt)
     }
 
-    @ViewBuilder
-    private var contentView: some View {
-        VStack {
-            Spacer()
+    private var encryptedBytesHex: String {
+        guard let encrypted = message.encryptedContent else {
+            return "Not available"
+        }
+        return encrypted.map { String(format: "%02x", $0) }.joined(separator: " ")
+    }
 
-            if message.contentType == .image {
-                if let uiImage = UIImage(data: message.decryptedContent) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFit()
-                        .cornerRadius(AppRadius.md)
-                        .padding(AppSpacing.md)
-                }
-            } else {
-                if let text = String(data: message.decryptedContent, encoding: .utf8) {
-                    Text(text)
-                        .font(.title2)
-                        .foregroundColor(.textPrimary)
-                        .multilineTextAlignment(.center)
-                        .padding(AppSpacing.xl)
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.appBackground.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                        // Message UID
+                        DebugInfoRow(title: "Message UID", value: message.id.uuidString)
+
+                        // Exact timestamp in ISO format
+                        DebugInfoRow(title: "Timestamp (ISO 8601)", value: isoTimestamp)
+
+                        // Content type
+                        DebugInfoRow(title: "Content Type", value: message.contentType.rawValue)
+
+                        // Direction
+                        DebugInfoRow(title: "Direction", value: message.isFromMe ? "Sent" : "Received")
+
+                        // Encrypted content
+                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                            Text("Encrypted Content (Hex)")
+                                .font(.appCaption)
+                                .foregroundColor(.textSecondary)
+
+                            ScrollView(.horizontal, showsIndicators: true) {
+                                Text(encryptedBytesHex)
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundColor(.textPrimary)
+                                    .textSelection(.enabled)
+                            }
+                            .padding(AppSpacing.md)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(maxHeight: 150)
+                            .background(Color.cardBackground)
+                            .cornerRadius(AppRadius.md)
+                        }
+
+                        // Encrypted content size
+                        if let encrypted = message.encryptedContent {
+                            DebugInfoRow(title: "Encrypted Size", value: "\(encrypted.count) bytes")
+                        }
+
+                        // Decrypted content size
+                        DebugInfoRow(title: "Decrypted Size", value: "\(message.decryptedContent.count) bytes")
+
+                        Spacer()
+                    }
+                    .padding(AppSpacing.lg)
                 }
             }
+            .navigationTitle("Message Debug Info")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(.appPrimary)
+                }
+            }
+        }
+    }
+}
 
-            Spacer()
+struct DebugInfoRow: View {
+    let title: String
+    let value: String
 
-            Text("Release to close")
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            Text(title)
                 .font(.appCaption)
                 .foregroundColor(.textSecondary)
-                .padding(.bottom, AppSpacing.xl)
+
+            Text(value)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundColor(.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(AppSpacing.md)
+                .background(Color.cardBackground)
+                .cornerRadius(AppRadius.md)
+                .textSelection(.enabled)
         }
     }
 }
@@ -347,31 +348,16 @@ class ChatViewModel: ObservableObject {
                 conversationID: message.fromUserID,
                 contentType: message.contentType,
                 decryptedContent: decryptedData,
+                encryptedContent: message.encryptedContent,
                 isFromMe: false,
                 hasBeenViewed: false,
-                serverDeleted: false,
-                createdAt: message.createdAt,
+                                createdAt: message.createdAt,
                 receivedAt: Date()
             )
 
             db.saveMessage(storedMessage)
         } catch {
             print("Failed to process message: \(error)")
-        }
-    }
-
-    func markAsViewed(_ message: StoredMessage) async {
-        db.markMessageAsViewed(messageID: message.id)
-
-        do {
-            try await api.acknowledgeMessage(id: message.id)
-            db.markMessageServerDeleted(messageID: message.id)
-        } catch {
-            // Will retry later
-        }
-
-        if let index = messages.firstIndex(where: { $0.id == message.id }) {
-            messages[index].hasBeenViewed = true
         }
     }
 
@@ -403,10 +389,10 @@ class ChatViewModel: ObservableObject {
                 conversationID: conversation.friendUserID,
                 contentType: .text,
                 decryptedContent: textData,
+                encryptedContent: encryptedData,
                 isFromMe: true,
                 hasBeenViewed: true,
-                serverDeleted: true,
-                createdAt: response.createdAt,
+                                createdAt: response.createdAt,
                 receivedAt: Date()
             )
 
@@ -445,10 +431,10 @@ class ChatViewModel: ObservableObject {
                 conversationID: conversation.friendUserID,
                 contentType: .image,
                 decryptedContent: imageData,
+                encryptedContent: encryptedData,
                 isFromMe: true,
                 hasBeenViewed: true,
-                serverDeleted: true,
-                createdAt: response.createdAt,
+                                createdAt: response.createdAt,
                 receivedAt: Date()
             )
 
@@ -479,6 +465,7 @@ extension StoredMessage: Hashable {
                 friendUserID: UUID(),
                 friendUsername: "testuser",
                 friendPublicKey: "",
+                friendSince: Date(),
                 lastMessageAt: Date(),
                 unreadCount: 2,
                 createdAt: Date()

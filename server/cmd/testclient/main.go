@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -61,14 +62,14 @@ func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: testclient <command>")
 		fmt.Println("Commands:")
-		fmt.Println("  register <username>                - Create account only (no friend request)")
-		fmt.Println("  friend <username> <target>         - Send friend request to target user")
-		fmt.Println("  setup <username>                   - Create account and send friend request to", targetUsername)
-		fmt.Println("  message <username> <message>       - Send a message (requires friendship)")
-		fmt.Println("  status <username>                  - Check friend request status")
-		fmt.Println("  receive <username>                 - Receive and decrypt messages")
-		fmt.Println("  accept <username> <request_id>     - Accept a friend request")
-		fmt.Println("  pending <username>                 - List pending friend requests")
+		fmt.Println("  register <username>                        - Create account only (no friend request)")
+		fmt.Println("  friend <username> <target>                 - Send friend request to target user")
+		fmt.Println("  setup <username>                           - Create account and send friend request to", targetUsername)
+		fmt.Println("  message --from <user> --to <user> <msg>    - Send a message (requires friendship)")
+		fmt.Println("  status <username>                          - Check friend request status")
+		fmt.Println("  receive <username>                         - Receive and decrypt messages")
+		fmt.Println("  accept <username> <request_id>             - Accept a friend request")
+		fmt.Println("  pending <username>                         - List pending friend requests")
 		os.Exit(1)
 	}
 
@@ -117,13 +118,26 @@ func main() {
 		}
 
 	case "message":
-		if len(os.Args) < 4 {
-			fmt.Println("Usage: testclient message <username> <message>")
+		msgFlags := flag.NewFlagSet("message", flag.ExitOnError)
+		fromUser := msgFlags.String("from", "", "sender username (required)")
+		toUser := msgFlags.String("to", "", "recipient username (required)")
+		msgFlags.Parse(os.Args[2:])
+
+		if *fromUser == "" || *toUser == "" {
+			fmt.Println("Usage: testclient message --from <sender> --to <recipient> <message>")
+			fmt.Println("  --from  sender username (required)")
+			fmt.Println("  --to    recipient username (required)")
 			os.Exit(1)
 		}
-		username := os.Args[2]
-		message := os.Args[3]
-		if err := runMessage(username, message); err != nil {
+
+		args := msgFlags.Args()
+		if len(args) < 1 {
+			fmt.Println("Usage: testclient message --from <sender> --to <recipient> <message>")
+			os.Exit(1)
+		}
+		message := args[0]
+
+		if err := runMessage(*fromUser, *toUser, message); err != nil {
 			fmt.Printf("Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -348,19 +362,19 @@ func runSetup(username string) error {
 	return nil
 }
 
-func runMessage(username, message string) error {
+func runMessage(fromUsername, toUsername, message string) error {
 	client := &TestClient{
 		httpClient: &http.Client{Timeout: 30 * time.Second},
-		username:   username,
+		username:   fromUsername,
 	}
 
 	// Load credentials
 	if err := client.loadCredentials(); err != nil {
-		return fmt.Errorf("failed to load credentials (did you run setup?): %w", err)
+		return fmt.Errorf("failed to load credentials for '%s' (did you run register first?): %w", fromUsername, err)
 	}
 
 	// Check if we're friends
-	fmt.Println("Checking friend status...")
+	fmt.Printf("Checking if %s is friends with %s...\n", fromUsername, toUsername)
 	friends, err := client.getFriends()
 	if err != nil {
 		return fmt.Errorf("failed to get friends: %w", err)
@@ -368,17 +382,17 @@ func runMessage(username, message string) error {
 
 	var targetFriend *Friend
 	for _, f := range friends {
-		if f.Username == targetUsername {
+		if f.Username == toUsername {
 			targetFriend = &f
 			break
 		}
 	}
 
 	if targetFriend == nil {
-		return fmt.Errorf("not friends with %s yet - accept the friend request in the iOS app first", targetUsername)
+		return fmt.Errorf("not friends with %s yet - send/accept a friend request first", toUsername)
 	}
 
-	fmt.Printf("Friends with %s! Sending encrypted message...\n", targetUsername)
+	fmt.Printf("Friends with %s! Sending encrypted message...\n", toUsername)
 
 	// Encrypt and send message
 	if err := client.sendMessage(targetFriend, message); err != nil {

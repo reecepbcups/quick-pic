@@ -27,14 +27,8 @@ struct ContentView: View {
                 LaunchView()
             } else if authManager.isAuthenticated {
                 MainView()
-                    .onAppear {
-                        SyncService.shared.startSyncTimer()
-                    }
             } else {
                 LoginView()
-                    .onAppear {
-                        SyncService.shared.stopSyncTimer()
-                    }
             }
         }
         .background(Color.appBackground)
@@ -72,6 +66,9 @@ struct MainView: View {
     @State private var showAddFriend = false
     @State private var showProfile = false
     @State private var selectedConversation: Conversation?
+    @State private var friendInfoConversation: Conversation?
+
+    private let refreshTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     var body: some View {
         NavigationStack {
@@ -128,8 +125,18 @@ struct MainView: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
+            .sheet(item: $friendInfoConversation) { conversation in
+                FriendInfoSheet(conversation: conversation)
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+            }
             .task {
                 await viewModel.loadData()
+            }
+            .onReceive(refreshTimer) { _ in
+                Task {
+                    await viewModel.refresh()
+                }
             }
         }
     }
@@ -186,6 +193,10 @@ struct MainView: View {
                         Haptics.light()
                         if case .conversation(let conversation) = item.type {
                             selectedConversation = conversation
+                        }
+                    } onLongPress: {
+                        if case .conversation(let conversation) = item.type {
+                            friendInfoConversation = conversation
                         }
                     }
                     .padding(.horizontal, AppSpacing.md)
@@ -249,36 +260,42 @@ struct FeedRow: View {
     let onAccept: () -> Void
     let onReject: () -> Void
     let onTap: () -> Void
+    let onLongPress: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: AppSpacing.md) {
-                // Status dot with initial
-                StatusDot(
-                    status: item.dotStatus,
-                    initial: String(item.username.prefix(1)).uppercased()
-                )
+        HStack(spacing: AppSpacing.md) {
+            // Status dot with initial
+            StatusDot(
+                status: item.dotStatus,
+                initial: String(item.username.prefix(1)).uppercased()
+            )
 
-                // Content
-                VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                    Text(item.username)
-                        .font(.appHeadline)
-                        .foregroundColor(.textPrimary)
+            // Content
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                Text(item.username)
+                    .font(.appHeadline)
+                    .foregroundColor(.textPrimary)
 
-                    Text(item.subtitle)
-                        .font(.appCaption)
-                        .foregroundColor(.textSecondary)
-                }
-
-                Spacer()
-
-                // Right content (badge or actions)
-                rightContent
+                Text(item.subtitle)
+                    .font(.appCaption)
+                    .foregroundColor(.textSecondary)
             }
-            .padding(AppSpacing.md)
-            .cardStyle()
+
+            Spacer()
+
+            // Right content (badge or actions)
+            rightContent
         }
-        .buttonStyle(FeedRowButtonStyle())
+        .padding(AppSpacing.md)
+        .cardStyle()
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onTap()
+        }
+        .onLongPressGesture {
+            Haptics.medium()
+            onLongPress()
+        }
     }
 
     @ViewBuilder
@@ -325,6 +342,143 @@ struct FeedRowButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .opacity(configuration.isPressed ? 0.9 : 1.0)
             .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Friend Info Sheet
+
+struct FriendInfoSheet: View {
+    let conversation: Conversation
+    @Environment(\.dismiss) private var dismiss
+    @State private var userNumber: Int64?
+    @State private var isLoading = true
+
+    private var joinDateFormatted: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter.string(from: conversation.friendSince)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: AppSpacing.lg) {
+                // Friend avatar and name
+                VStack(spacing: AppSpacing.sm) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.appPrimary.opacity(0.2))
+                            .frame(width: 70, height: 70)
+
+                        Text(String(conversation.friendUsername.prefix(1)).uppercased())
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundColor(.appPrimary)
+                    }
+
+                    Text(conversation.friendUsername)
+                        .font(.appTitle)
+                        .foregroundColor(.textPrimary)
+                }
+                .padding(.top, AppSpacing.md)
+
+                // Info rows
+                VStack(spacing: AppSpacing.sm) {
+                    // User number
+                    HStack {
+                        Text("User #")
+                            .font(.appCaption)
+                            .foregroundColor(.textSecondary)
+                        Spacer()
+                        if isLoading {
+                            ProgressView()
+                                .tint(.appPrimary)
+                        } else if let number = userNumber {
+                            Text("\(number)")
+                                .font(.appBody)
+                                .foregroundColor(.textPrimary)
+                        }
+                    }
+                    .padding(AppSpacing.md)
+                    .background(Color.cardBackground)
+                    .cornerRadius(AppRadius.md)
+
+                    // Friends since
+                    HStack {
+                        Text("Friends Since")
+                            .font(.appCaption)
+                            .foregroundColor(.textSecondary)
+                        Spacer()
+                        Text(joinDateFormatted)
+                            .font(.appBody)
+                            .foregroundColor(.textPrimary)
+                    }
+                    .padding(AppSpacing.md)
+                    .background(Color.cardBackground)
+                    .cornerRadius(AppRadius.md)
+
+                    // Public Key
+                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                        Text("Public Key")
+                            .font(.appCaption)
+                            .foregroundColor(.textSecondary)
+
+                        Text(conversation.friendPublicKey)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundColor(.textPrimary)
+                            .lineLimit(2)
+                            .textSelection(.enabled)
+                    }
+                    .padding(AppSpacing.md)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.cardBackground)
+                    .cornerRadius(AppRadius.md)
+                }
+                .padding(.horizontal, AppSpacing.lg)
+
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.appBackground)
+            .navigationTitle("Friend Info")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(.appPrimary)
+                }
+            }
+            .task {
+                do {
+                    let user = try await APIService.shared.getUser(username: conversation.friendUsername)
+                    userNumber = user.userNumber
+                } catch {
+                    print("Failed to fetch user info: \(error)")
+                }
+                isLoading = false
+            }
+        }
+    }
+}
+
+struct InfoRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            Text(title)
+                .font(.appCaption)
+                .foregroundColor(.textSecondary)
+
+            Text(value)
+                .font(.appBody)
+                .foregroundColor(.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(AppSpacing.md)
+                .background(Color.cardBackground)
+                .cornerRadius(AppRadius.md)
+        }
     }
 }
 
@@ -456,9 +610,9 @@ class MainViewModel: ObservableObject {
                 conversationID: message.fromUserID,
                 contentType: message.contentType,
                 decryptedContent: decryptedData,
+                encryptedContent: message.encryptedContent,
                 isFromMe: false,
                 hasBeenViewed: false,
-                serverDeleted: false,
                 createdAt: message.createdAt,
                 receivedAt: Date()
             )

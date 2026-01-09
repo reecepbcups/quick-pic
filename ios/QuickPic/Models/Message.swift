@@ -64,9 +64,9 @@ struct CachedMessage: Codable, Identifiable {
             conversationID: fromUserID,
             contentType: contentType,
             decryptedContent: decryptedContent,
+            encryptedContent: nil,
             isFromMe: false,
             hasBeenViewed: hasBeenViewed,
-            serverDeleted: false,
             createdAt: receivedAt,
             receivedAt: receivedAt
         )

@@ -27,7 +27,7 @@ final class AuthManager: ObservableObject {
 
         // Check if we have stored user and tokens
         guard let _ = try? keychain.getAccessToken(),
-              let _ = try? keychain.getCurrentUser() else {
+              let storedUser = try? keychain.getCurrentUser() else {
             isAuthenticated = false
             return
         }
@@ -39,9 +39,18 @@ final class AuthManager: ObservableObject {
             try saveAuthResponse(response)
             isAuthenticated = true
             currentUser = response.user
-        } catch {
-            // Token invalid, clear and require re-login
+        } catch APIError.unauthorized {
+            // Token is invalid, clear and require re-login
             logout()
+        } catch APIError.httpError(let statusCode, _) where statusCode == 401 || statusCode == 403 {
+            // Auth-related HTTP errors, require re-login
+            logout()
+        } catch {
+            // Network error or other transient issue - keep user logged in with stored data
+            print("[AuthManager] Token refresh failed with transient error: \(error)")
+            print("[AuthManager] Keeping user logged in with stored credentials")
+            isAuthenticated = true
+            currentUser = storedUser
         }
     }
 

@@ -461,9 +461,9 @@ class FriendPickerViewModel: ObservableObject {
             conversationID: friend.userID,
             contentType: .image,
             decryptedContent: imageData,
+            encryptedContent: encryptedData,
             isFromMe: true,
             hasBeenViewed: true,
-            serverDeleted: true,
             createdAt: response.createdAt,
             receivedAt: Date()
         )

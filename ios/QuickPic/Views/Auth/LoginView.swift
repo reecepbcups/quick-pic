@@ -98,6 +98,15 @@ struct LoginView: View {
                         .fontWeight(.semibold)
                         .foregroundColor(.appPrimary)
                     }
+                    .padding(.bottom, AppSpacing.md)
+
+                    Button(action: debugCreateReece) {
+                        Text("Debug Create REECE")
+                            .font(.appCaption)
+                            .fontWeight(.medium)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.orange)
                     .padding(.bottom, AppSpacing.xl)
                 }
             }
@@ -128,6 +137,29 @@ struct LoginView: View {
                 Haptics.error()
             } catch {
                 errorMessage = "Login failed. Please try again."
+                Haptics.error()
+            }
+            isLoading = false
+        }
+    }
+
+    private func debugCreateReece() {
+        Haptics.light()
+        isLoading = true
+        errorMessage = nil
+
+        Task {
+            do {
+                try await authManager.register(username: "reecepbcups", password: "password")
+                Haptics.success()
+            } catch APIError.httpError(409, _) {
+                errorMessage = "Username already exists"
+                Haptics.error()
+            } catch APIError.httpError(_, let message) {
+                errorMessage = message ?? "Debug registration failed"
+                Haptics.error()
+            } catch {
+                errorMessage = "Debug registration failed. Please try again."
                 Haptics.error()
             }
             isLoading = false

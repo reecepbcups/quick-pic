@@ -48,18 +48,3 @@ func (s *MessageService) SendMessage(ctx context.Context, fromUserID uuid.UUID, 
 func (s *MessageService) GetPendingMessages(ctx context.Context, userID uuid.UUID) ([]models.MessageWithSender, error) {
 	return s.messageRepo.GetPendingMessages(ctx, userID)
 }
-
-func (s *MessageService) AcknowledgeMessage(ctx context.Context, userID uuid.UUID, messageID uuid.UUID) error {
-	msg, err := s.messageRepo.GetByID(ctx, messageID)
-	if err != nil {
-		return err
-	}
-
-	// Verify the current user is the recipient
-	if msg.ToUserID != userID {
-		return models.ErrUnauthorized
-	}
-
-	// Delete the message
-	return s.messageRepo.Delete(ctx, messageID)
-}

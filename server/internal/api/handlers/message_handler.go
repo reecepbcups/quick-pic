@@ -75,28 +75,3 @@ func (h *MessageHandler) GetMessages(c *gin.Context) {
 	c.JSON(http.StatusOK, messages)
 }
 
-func (h *MessageHandler) AcknowledgeMessage(c *gin.Context) {
-	userID := c.MustGet("userID").(uuid.UUID)
-
-	messageIDStr := c.Param("id")
-	messageID, err := uuid.Parse(messageIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid message ID"})
-		return
-	}
-
-	err = h.messageService.AcknowledgeMessage(c.Request.Context(), userID, messageID)
-	if err != nil {
-		switch {
-		case errors.Is(err, models.ErrMessageNotFound):
-			c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
-		case errors.Is(err, models.ErrUnauthorized):
-			c.JSON(http.StatusForbidden, gin.H{"error": "not authorized to acknowledge this message"})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to acknowledge message"})
-		}
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "message acknowledged and deleted"})
-}
