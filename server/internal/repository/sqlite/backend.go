@@ -32,12 +32,12 @@ func NewBackend(dataSourceName string) (*Backend, error) {
 
 	// Enable foreign keys
 	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
 	}
 
 	if err := db.Ping(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
@@ -50,7 +50,7 @@ func NewBackend(dataSourceName string) (*Backend, error) {
 
 	// Run migrations
 	if err := backend.migrate(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
@@ -345,7 +345,7 @@ func (r *FriendRepository) GetPendingRequests(ctx context.Context, userID uuid.U
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var requests []models.FriendRequestWithUser
 	for rows.Next() {
@@ -457,7 +457,7 @@ func (r *FriendRepository) GetFriends(ctx context.Context, userID uuid.UUID) ([]
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var friends []models.Friend
 	for rows.Next() {
@@ -508,7 +508,7 @@ func (r *MessageRepository) GetPendingMessages(ctx context.Context, userID uuid.
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var messages []models.MessageWithSender
 	for rows.Next() {

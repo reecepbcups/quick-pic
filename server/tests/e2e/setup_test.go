@@ -61,7 +61,7 @@ func TestMain(m *testing.M) {
 
 	// Cleanup
 	testServer.Close()
-	result.Backend.Close()
+	_ = result.Backend.Close()
 
 	os.Exit(code)
 }
@@ -75,7 +75,9 @@ type TestClient struct {
 
 func NewTestClient(t *testing.T) *TestClient {
 	// Reset database before each test
-	testBackend.Reset()
+	if err := testBackend.Reset(); err != nil {
+		t.Fatalf("Failed to reset test backend: %v", err)
+	}
 
 	return &TestClient{
 		t:       t,
@@ -139,7 +141,7 @@ func (c *TestClient) request(method, path string, body interface{}) *http.Respon
 // Response parsing helpers
 
 func (c *TestClient) ParseJSON(resp *http.Response, v interface{}) {
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
 		c.t.Fatalf("Failed to parse JSON response: %v", err)
 	}

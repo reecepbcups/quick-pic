@@ -159,7 +159,9 @@ func (s *AuthService) generateTokens(ctx context.Context, user *models.User) (*m
 
 func (s *AuthService) hashPassword(password string) string {
 	salt := make([]byte, 16)
-	rand.Read(salt)
+	if _, err := rand.Read(salt); err != nil {
+		panic("failed to generate random salt: " + err.Error())
+	}
 
 	hash := argon2.IDKey([]byte(password), salt, 1, 64*1024, 4, 32)
 

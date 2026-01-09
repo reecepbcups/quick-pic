@@ -51,7 +51,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize backend: %v", err)
 	}
-	defer result.Backend.Close()
+	defer func() { _ = result.Backend.Close() }()
 
 	// Initialize services
 	authService := services.NewAuthService(result.Repos.Users, jwtSecret)

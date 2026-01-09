@@ -464,7 +464,7 @@ func (r *FriendRepository) GetFriends(ctx context.Context, userID uuid.UUID) ([]
 		}
 
 		// Get friendship creation time
-		friendships, err := r.backend.contract.GetUserFriendships(&bind.CallOpts{Context: ctx}, uuidToBytes32(userID))
+		friendships, _ := r.backend.contract.GetUserFriendships(&bind.CallOpts{Context: ctx}, uuidToBytes32(userID))
 		var since time.Time
 		for _, fshipID := range friendships {
 			fship, err := r.backend.contract.GetFriendship(&bind.CallOpts{Context: ctx}, fshipID)
