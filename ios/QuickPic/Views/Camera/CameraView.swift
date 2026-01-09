@@ -475,31 +475,31 @@ class FriendPickerViewModel: ObservableObject {
 
 // MARK: - Camera Preview
 
+class CameraPreviewUIView: UIView {
+    var previewLayer: AVCaptureVideoPreviewLayer?
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        previewLayer?.frame = bounds
+    }
+}
+
 struct CameraPreviewView: UIViewRepresentable {
     let session: AVCaptureSession
 
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
+    func makeUIView(context: Context) -> CameraPreviewUIView {
+        let view = CameraPreviewUIView()
 
         let previewLayer = AVCaptureVideoPreviewLayer(session: session)
         previewLayer.videoGravity = .resizeAspectFill
         view.layer.addSublayer(previewLayer)
-
-        context.coordinator.previewLayer = previewLayer
+        view.previewLayer = previewLayer
 
         return view
     }
 
-    func updateUIView(_ uiView: UIView, context: Context) {
-        context.coordinator.previewLayer?.frame = uiView.bounds
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    class Coordinator {
-        var previewLayer: AVCaptureVideoPreviewLayer?
+    func updateUIView(_ uiView: CameraPreviewUIView, context: Context) {
+        uiView.previewLayer?.frame = uiView.bounds
     }
 }
 

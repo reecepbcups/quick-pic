@@ -205,7 +205,12 @@ struct MessageDebugSheet: View {
         guard let encrypted = message.encryptedContent else {
             return "Not available"
         }
-        return encrypted.map { String(format: "%02x", $0) }.joined(separator: " ")
+        let previewBytes = encrypted.prefix(256)
+        let hex = previewBytes.map { String(format: "%02x", $0) }.joined(separator: " ")
+        if encrypted.count > 256 {
+            return hex + " ... (\(encrypted.count) bytes total)"
+        }
+        return hex
     }
 
     var body: some View {
