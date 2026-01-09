@@ -1,0 +1,78 @@
+# QuickPic Server Justfile
+# Install just: https://github.com/casey/just
+
+set dotenv-load
+
+# Default recipe - show help
+default:
+    @just --list
+
+# Build the server binary
+build:
+    go build -o bin/server ./cmd/server
+
+# Run the server
+run:
+    go run ./cmd/server
+
+# Run all tests with race detection
+test: test-unit test-e2e
+
+# Run unit tests with race detection
+test-unit:
+    @echo "Running unit tests with race detection..."
+    go test -race -v ./internal/...
+
+# Run e2e tests with race detection (uses in-memory SQLite)
+test-e2e:
+    @echo "Running e2e tests with race detection..."
+    go test -race -v ./tests/e2e -count=1
+
+# Run all tests with coverage
+test-coverage:
+    @echo "Running tests with coverage..."
+    go test -race -coverprofile=coverage.out ./...
+    go tool cover -html=coverage.out -o coverage.html
+    @echo "Coverage report: coverage.html"
+
+# Run specific test by name
+test-one NAME:
+    go test -race -v ./tests/e2e -run {{NAME}} -count=1
+
+# Clean build artifacts and database
+clean:
+    rm -rf bin/
+    rm -f coverage.out coverage.html
+    rm -f quickpic.db quickpic.db-journal
+
+# Format code
+fmt:
+    go fmt ./...
+
+# Run linter (requires golangci-lint)
+lint:
+    golangci-lint run ./...
+
+# Download and tidy dependencies
+deps:
+    go mod download
+    go mod tidy
+
+# Check for vulnerabilities
+vuln:
+    go install golang.org/x/vuln/cmd/govulncheck@latest
+    govulncheck ./...
+
+# Run with hot reload (requires air)
+dev:
+    air
+
+# Build for production
+build-prod:
+    CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o bin/server ./cmd/server
+
+# CI pipeline - run all checks
+ci: fmt lint test
+
+# Quick check before commit
+pre-commit: fmt lint test-unit

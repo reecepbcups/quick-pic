@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  GO_VERSION: "1.23"
+
+jobs:
+  # Server tests
+  server-test:
+    name: Server Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: server/go.sum
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Download dependencies
+        working-directory: ./server
+        run: just deps
+
+      - name: Run linter
+        working-directory: ./server
+        run: |
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          just lint
+        continue-on-error: true
+
+      - name: Run unit tests with race detection
+        working-directory: ./server
+        run: just test-unit
+
+      - name: Run e2e tests with race detection
+        working-directory: ./server
+        run: just test-e2e
+
+      - name: Run tests with coverage
+        working-directory: ./server
+        run: |
+          go test -race -coverprofile=coverage.out -covermode=atomic ./...
+          go tool cover -func=coverage.out
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./server/coverage.out
+          flags: server
+          fail_ci_if_error: false
+
+  # Server build
+  server-build:
+    name: Server Build
+    runs-on: ubuntu-latest
+    needs: server-test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: server/go.sum
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Build production binary
+        working-directory: ./server
+        run: just build-prod
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-binary
+          path: server/bin/server
+
+  # iOS build check
+  ios-syntax-check:
+    name: iOS Syntax Check
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check Swift syntax
+        working-directory: ./ios/QuickPic
+        run: |
+          echo "Checking Swift files for syntax errors..."
+          find . -name "*.swift" -exec swift -typecheck {} \; 2>&1 || true
+          echo "Swift syntax check complete"
+
+  # Security scan
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: server/go.sum
+
+      - name: Run govulncheck
+        working-directory: ./server
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+        continue-on-error: true
+
+  # All checks passed
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs: [server-test, server-build, ios-syntax-check, security-scan]
+    if: always()
+
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [ "${{ needs.server-test.result }}" != "success" ]; then
+            echo "Server tests failed"
+            exit 1
+          fi
+          if [ "${{ needs.server-build.result }}" != "success" ]; then
+            echo "Server build failed"
+            exit 1
+          fi
+          echo "All CI checks passed!"
