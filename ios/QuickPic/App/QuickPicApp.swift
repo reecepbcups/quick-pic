@@ -128,9 +128,6 @@ struct MainView: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
-            .refreshable {
-                await viewModel.refresh()
-            }
             .task {
                 await viewModel.loadData()
             }
@@ -197,27 +194,39 @@ struct MainView: View {
             .padding(.top, AppSpacing.sm)
             .padding(.bottom, 100) // Space for FAB
         }
+        .refreshable {
+            await viewModel.refresh()
+        }
     }
 
     // MARK: - Empty State
 
     private var emptyView: some View {
-        VStack(spacing: AppSpacing.md) {
-            Spacer()
+        ScrollView {
+            VStack(spacing: AppSpacing.md) {
+                Spacer()
+                    .frame(height: 150)
 
-            Image(systemName: "person.2")
-                .font(.system(size: 50))
-                .foregroundColor(.textSecondary)
+                Image(systemName: "person.2")
+                    .font(.system(size: 50))
+                    .foregroundColor(.textSecondary)
 
-            Text("No friends yet")
-                .font(.appHeadline)
-                .foregroundColor(.textPrimary)
+                Text("No friends yet")
+                    .font(.appHeadline)
+                    .foregroundColor(.textPrimary)
 
-            Text("Tap + to add friends")
-                .font(.appCaption)
-                .foregroundColor(.textSecondary)
+                Text("Tap + to add friends\nPull down to refresh")
+                    .font(.appCaption)
+                    .foregroundColor(.textSecondary)
+                    .multilineTextAlignment(.center)
 
-            Spacer()
+                Spacer()
+                    .frame(height: 150)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .refreshable {
+            await viewModel.refresh()
         }
     }
 
@@ -366,12 +375,14 @@ class MainViewModel: ObservableObject {
         await refresh()
     }
 
-    func refresh() async {
-        if let lastLoad = lastLoadTime,
+    func refresh(force: Bool = false) async {
+        if !force, let lastLoad = lastLoadTime,
            Date().timeIntervalSince(lastLoad) < minRefreshInterval {
+            print("[MainViewModel] Skipping refresh - too soon")
             return
         }
 
+        print("[MainViewModel] Starting refresh\(force ? " (forced)" : "")...")
         isLoading = true
         defer {
             isLoading = false
@@ -387,6 +398,11 @@ class MainViewModel: ObservableObject {
             friends = loadedFriends
             pendingRequests = loadedRequests
 
+            print("[MainViewModel] Loaded \(friends.count) friends, \(pendingRequests.count) pending requests")
+            for req in pendingRequests {
+                print("[MainViewModel] Pending request from: \(req.fromUser.username)")
+            }
+
             // Sync friends to conversations
             for friend in friends {
                 _ = db.getOrCreateConversation(for: friend)
@@ -400,7 +416,9 @@ class MainViewModel: ObservableObject {
 
             // Build feed items
             buildFeedItems()
+            print("[MainViewModel] Built \(feedItems.count) feed items")
         } catch {
+            print("[MainViewModel] Refresh failed: \(error)")
             if feedItems.isEmpty {
                 errorMessage = "Failed to load data"
             }
@@ -510,10 +528,14 @@ class MainViewModel: ObservableObject {
         Task {
             do {
                 try await api.acceptFriendRequest(requestID: request.id)
+                Haptics.success()
+
+                // Remove the request from UI immediately
                 pendingRequests.removeAll { $0.id == request.id }
                 buildFeedItems()
-                await refresh()
-                Haptics.success()
+
+                // Force refresh to get the new friend
+                await refresh(force: true)
             } catch {
                 Haptics.error()
             }

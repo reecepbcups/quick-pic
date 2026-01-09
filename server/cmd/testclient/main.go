@@ -61,9 +61,14 @@ func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: testclient <command>")
 		fmt.Println("Commands:")
-		fmt.Println("  setup <username>  - Create account and send friend request to", targetUsername)
-		fmt.Println("  message <username> <message> - Send a message (requires friendship)")
-		fmt.Println("  status <username> - Check friend request status")
+		fmt.Println("  register <username>                - Create account only (no friend request)")
+		fmt.Println("  friend <username> <target>         - Send friend request to target user")
+		fmt.Println("  setup <username>                   - Create account and send friend request to", targetUsername)
+		fmt.Println("  message <username> <message>       - Send a message (requires friendship)")
+		fmt.Println("  status <username>                  - Check friend request status")
+		fmt.Println("  receive <username>                 - Receive and decrypt messages")
+		fmt.Println("  accept <username> <request_id>     - Accept a friend request")
+		fmt.Println("  pending <username>                 - List pending friend requests")
 		os.Exit(1)
 	}
 
@@ -73,6 +78,29 @@ func main() {
 	case "debug":
 		// Test encryption/decryption locally
 		if err := runDebug(); err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "register":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: testclient register <username>")
+			os.Exit(1)
+		}
+		username := os.Args[2]
+		if err := runRegisterOnly(username); err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "friend":
+		if len(os.Args) < 4 {
+			fmt.Println("Usage: testclient friend <username> <target_username>")
+			os.Exit(1)
+		}
+		username := os.Args[2]
+		target := os.Args[3]
+		if err := runFriendOnly(username, target); err != nil {
 			fmt.Printf("Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -122,10 +150,165 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "pending":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: testclient pending <username>")
+			os.Exit(1)
+		}
+		username := os.Args[2]
+		if err := runPending(username); err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "accept":
+		if len(os.Args) < 4 {
+			fmt.Println("Usage: testclient accept <username> <request_id>")
+			os.Exit(1)
+		}
+		username := os.Args[2]
+		requestID := os.Args[3]
+		if err := runAccept(username, requestID); err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+
 	default:
 		fmt.Printf("Unknown command: %s\n", command)
 		os.Exit(1)
 	}
+}
+
+func runRegisterOnly(username string) error {
+	client := &TestClient{
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+		username:   username,
+	}
+
+	// Generate keypair
+	fmt.Println("Generating keypair...")
+	if err := client.generateKeyPair(); err != nil {
+		return fmt.Errorf("failed to generate keypair: %w", err)
+	}
+
+	// Register
+	fmt.Printf("Registering user '%s'...\n", username)
+	if err := client.register(); err != nil {
+		return fmt.Errorf("failed to register: %w", err)
+	}
+	fmt.Println("Registration successful!")
+
+	// Save credentials
+	if err := client.saveCredentials(); err != nil {
+		return fmt.Errorf("failed to save credentials: %w", err)
+	}
+	fmt.Printf("Credentials saved to %s.json\n", username)
+	fmt.Printf("\nTo send a friend request, run:\n")
+	fmt.Printf("  go run ./cmd/testclient friend %s <target_username>\n", username)
+
+	return nil
+}
+
+func runFriendOnly(username, target string) error {
+	client := &TestClient{
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+		username:   username,
+	}
+
+	// Load credentials
+	if err := client.loadCredentials(); err != nil {
+		return fmt.Errorf("failed to load credentials (did you run register first?): %w", err)
+	}
+
+	// Send friend request
+	fmt.Printf("Sending friend request to '%s'...\n", target)
+	if err := client.sendFriendRequest(target); err != nil {
+		return fmt.Errorf("failed to send friend request: %w", err)
+	}
+	fmt.Println("Friend request sent!")
+
+	return nil
+}
+
+func runPending(username string) error {
+	client := &TestClient{
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+		username:   username,
+	}
+
+	// Load credentials
+	if err := client.loadCredentials(); err != nil {
+		return fmt.Errorf("failed to load credentials (did you run register first?): %w", err)
+	}
+
+	// Get pending requests
+	req, _ := http.NewRequest("GET", baseURL+"/friends/requests", nil)
+	req.Header.Set("Authorization", "Bearer "+client.accessToken)
+
+	resp, err := client.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("get pending requests failed (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var requests []struct {
+		ID       string `json:"id"`
+		FromUser struct {
+			ID       string `json:"id"`
+			Username string `json:"username"`
+		} `json:"from_user"`
+		CreatedAt string `json:"created_at"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&requests); err != nil {
+		return fmt.Errorf("decode failed: %w", err)
+	}
+
+	fmt.Printf("Pending friend requests (%d):\n", len(requests))
+	for _, r := range requests {
+		fmt.Printf("  ID: %s | From: %s | At: %s\n", r.ID, r.FromUser.Username, r.CreatedAt)
+	}
+
+	if len(requests) > 0 {
+		fmt.Printf("\nTo accept a request, run:\n")
+		fmt.Printf("  go run ./cmd/testclient accept %s <request_id>\n", username)
+	}
+
+	return nil
+}
+
+func runAccept(username, requestID string) error {
+	client := &TestClient{
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+		username:   username,
+	}
+
+	// Load credentials
+	if err := client.loadCredentials(); err != nil {
+		return fmt.Errorf("failed to load credentials (did you run register first?): %w", err)
+	}
+
+	// Accept friend request
+	req, _ := http.NewRequest("POST", baseURL+"/friends/requests/"+requestID+"/accept", nil)
+	req.Header.Set("Authorization", "Bearer "+client.accessToken)
+
+	resp, err := client.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("accept request failed (%d): %s", resp.StatusCode, string(body))
+	}
+
+	fmt.Println("Friend request accepted!")
+	return nil
 }
 
 func runSetup(username string) error {

@@ -41,46 +41,49 @@ struct ProfileSheet: View {
                 Divider()
                     .background(Color.inputBackground)
 
-                // Security info
-                VStack(spacing: AppSpacing.md) {
-                    SecurityRow(
-                        icon: "lock.shield.fill",
-                        iconColor: .success,
-                        title: "End-to-end encrypted",
-                        subtitle: "Messages are encrypted on your device"
-                    )
+                // Scrollable settings section
+                ScrollView {
+                    VStack(spacing: AppSpacing.lg) {
+                        // Security info
+                        VStack(spacing: AppSpacing.md) {
+                            SecurityRow(
+                                icon: "lock.shield.fill",
+                                iconColor: .success,
+                                title: "End-to-end encrypted",
+                                subtitle: "Messages are encrypted on your device"
+                            )
 
-                    SecurityRow(
-                        icon: "key.fill",
-                        iconColor: .appPrimary,
-                        title: "Private key on device",
-                        subtitle: "Your key never leaves this device"
-                    )
-                }
-                .padding(.horizontal, AppSpacing.md)
+                            SecurityRow(
+                                icon: "key.fill",
+                                iconColor: .appPrimary,
+                                title: "Private key on device",
+                                subtitle: "Your key never leaves this device"
+                            )
+                        }
+                        .padding(.horizontal, AppSpacing.md)
 
-                Spacer()
+                        // Logout button
+                        Button(action: logout) {
+                            HStack {
+                                Image(systemName: "rectangle.portrait.and.arrow.right")
+                                Text("Log Out")
+                            }
+                            .font(.appHeadline)
+                            .foregroundColor(.danger)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color.danger.opacity(0.1))
+                            .cornerRadius(AppRadius.md)
+                        }
+                        .padding(.horizontal, AppSpacing.md)
 
-                // Logout button
-                Button(action: logout) {
-                    HStack {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                        Text("Log Out")
+                        // Version
+                        Text("Version 1.0.0")
+                            .font(.appSmall)
+                            .foregroundColor(.textSecondary)
+                            .padding(.bottom, AppSpacing.md)
                     }
-                    .font(.appHeadline)
-                    .foregroundColor(.danger)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(Color.danger.opacity(0.1))
-                    .cornerRadius(AppRadius.md)
                 }
-                .padding(.horizontal, AppSpacing.md)
-
-                // Version
-                Text("Version 1.0.0")
-                    .font(.appSmall)
-                    .foregroundColor(.textSecondary)
-                    .padding(.bottom, AppSpacing.md)
             }
         }
     }

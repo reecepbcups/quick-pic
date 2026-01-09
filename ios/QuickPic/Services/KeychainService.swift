@@ -18,6 +18,7 @@ final class KeychainService: Sendable {
     // MARK: - Private Key Storage
 
     func storePrivateKey(_ privateKey: Data) throws {
+        print("[Keychain] Storing private key (\(privateKey.count) bytes)")
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -29,6 +30,7 @@ final class KeychainService: Sendable {
         let status = SecItemAdd(query as CFDictionary, nil)
 
         if status == errSecDuplicateItem {
+            print("[Keychain] Private key exists, updating...")
             // Update existing item
             let updateQuery: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
@@ -40,10 +42,15 @@ final class KeychainService: Sendable {
             ]
             let updateStatus = SecItemUpdate(updateQuery as CFDictionary, updates as CFDictionary)
             guard updateStatus == errSecSuccess else {
+                print("[Keychain] Failed to update private key: \(updateStatus)")
                 throw KeychainError.unexpectedStatus(updateStatus)
             }
+            print("[Keychain] Private key updated successfully")
         } else if status != errSecSuccess {
+            print("[Keychain] Failed to store private key: \(status)")
             throw KeychainError.unexpectedStatus(status)
+        } else {
+            print("[Keychain] Private key stored successfully")
         }
     }
 
@@ -60,10 +67,13 @@ final class KeychainService: Sendable {
 
         guard status == errSecSuccess else {
             if status == errSecItemNotFound {
+                print("[Keychain] Private key not found in keychain!")
                 throw KeychainError.itemNotFound
             }
+            print("[Keychain] Failed to get private key: \(status)")
             throw KeychainError.unexpectedStatus(status)
         }
+        print("[Keychain] Private key retrieved successfully")
 
         guard let data = result as? Data else {
             throw KeychainError.invalidData

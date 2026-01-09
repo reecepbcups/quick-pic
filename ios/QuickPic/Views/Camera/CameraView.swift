@@ -329,21 +329,23 @@ class CameraViewModel: NSObject, ObservableObject {
     let session = AVCaptureSession()
     private var photoOutput = AVCapturePhotoOutput()
     private var currentCameraPosition: AVCaptureDevice.Position = .back
+    private let sessionQueue = DispatchQueue(label: "camera.session.queue")
 
     func startSession() {
-        guard !session.isRunning else { return }
-
-        Task {
-            await setupSession()
+        sessionQueue.async { [self] in
+            guard !session.isRunning else { return }
+            setupSession()
             session.startRunning()
         }
     }
 
     func stopSession() {
-        session.stopRunning()
+        sessionQueue.async { [self] in
+            session.stopRunning()
+        }
     }
 
-    private func setupSession() async {
+    private func setupSession() {
         session.beginConfiguration()
         session.sessionPreset = .photo
 
@@ -380,22 +382,24 @@ class CameraViewModel: NSObject, ObservableObject {
     }
 
     func switchCamera() {
-        currentCameraPosition = currentCameraPosition == .back ? .front : .back
+        sessionQueue.async { [self] in
+            currentCameraPosition = currentCameraPosition == .back ? .front : .back
 
-        session.beginConfiguration()
-        session.inputs.forEach { session.removeInput($0) }
+            session.beginConfiguration()
+            session.inputs.forEach { session.removeInput($0) }
 
-        guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: currentCameraPosition),
-              let input = try? AVCaptureDeviceInput(device: camera) else {
+            guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: currentCameraPosition),
+                  let input = try? AVCaptureDeviceInput(device: camera) else {
+                session.commitConfiguration()
+                return
+            }
+
+            if session.canAddInput(input) {
+                session.addInput(input)
+            }
+
             session.commitConfiguration()
-            return
         }
-
-        if session.canAddInput(input) {
-            session.addInput(input)
-        }
-
-        session.commitConfiguration()
     }
 }
 
