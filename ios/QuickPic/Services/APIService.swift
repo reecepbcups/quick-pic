@@ -50,7 +50,7 @@ final class APIService: @unchecked Sendable {
 
     func refreshToken(_ refreshToken: String) async throws -> AuthResponse {
         let request = RefreshRequest(refreshToken: refreshToken)
-        return try await post("/auth/refresh", body: request)
+        return try await post("/auth/refresh", body: request, allowRetry: false)
     }
 
     func logout(refreshToken: String) async throws {
@@ -121,7 +121,7 @@ final class APIService: @unchecked Sendable {
         return try await execute(request)
     }
 
-    private func post<T: Decodable, B: Encodable>(_ path: String, body: B, authenticated: Bool = false) async throws -> T {
+    private func post<T: Decodable, B: Encodable>(_ path: String, body: B, authenticated: Bool = false, allowRetry: Bool = true) async throws -> T {
         var request = try makeRequest(path: path, method: "POST")
         request.httpBody = try encoder.encode(body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -130,7 +130,7 @@ final class APIService: @unchecked Sendable {
             try addAuthHeader(to: &request)
         }
 
-        return try await execute(request)
+        return try await execute(request, allowRetry: allowRetry)
     }
 
     private func makeRequest(path: String, method: String) throws -> URLRequest {
@@ -148,7 +148,7 @@ final class APIService: @unchecked Sendable {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
     }
 
-    private func execute<T: Decodable>(_ request: URLRequest) async throws -> T {
+    private func execute<T: Decodable>(_ request: URLRequest, allowRetry: Bool = true) async throws -> T {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -164,8 +164,8 @@ final class APIService: @unchecked Sendable {
             }
 
         case 401:
-            // Try to refresh token
-            if let refreshedResponse = try? await refreshAndRetry(request) as T {
+            // Try to refresh token (but not if this is already a refresh/auth request)
+            if allowRetry, let refreshedResponse = try? await refreshAndRetry(request) as T {
                 return refreshedResponse
             }
             throw APIError.unauthorized

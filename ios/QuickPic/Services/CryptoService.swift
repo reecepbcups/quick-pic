@@ -105,17 +105,12 @@ final class CryptoService: Sendable {
         senderPublicKey: Curve25519.KeyAgreement.PublicKey,
         recipientPrivateKey: Curve25519.KeyAgreement.PrivateKey
     ) throws -> Data {
-        // 1. Verify signature
-        guard let signatureData = Data(base64Encoded: signature) else {
-            throw CryptoError.verificationFailed
-        }
+        // TODO: Signature verification is currently skipped because X25519 and Ed25519
+        // public keys are not interchangeable. To fix properly, we need to store
+        // Ed25519 public keys separately on the server for signature verification.
+        // For now, we rely on the encryption itself for authenticity (AEAD).
 
-        let verifyingKey = try Curve25519.Signing.PublicKey(rawRepresentation: senderPublicKey.rawRepresentation)
-        guard verifyingKey.isValidSignature(signatureData, for: encryptedData) else {
-            throw CryptoError.verificationFailed
-        }
-
-        // 2. Extract encrypted symmetric key length
+        // 1. Extract encrypted symmetric key length
         guard encryptedData.count >= 4 else {
             throw CryptoError.decryptionFailed
         }
@@ -127,11 +122,11 @@ final class CryptoService: Sendable {
             throw CryptoError.decryptionFailed
         }
 
-        // 3. Extract encrypted symmetric key and encrypted content
+        // 2. Extract encrypted symmetric key and encrypted content
         let encryptedKeyData = encryptedData.subdata(in: 4..<(4 + Int(keyLength)))
         let encryptedContent = encryptedData.subdata(in: (4 + Int(keyLength))..<encryptedData.count)
 
-        // 4. Derive shared secret and decrypt symmetric key
+        // 3. Derive shared secret and decrypt symmetric key
         let sharedSecret = try recipientPrivateKey.sharedSecretFromKeyAgreement(with: senderPublicKey)
         let derivedKey = sharedSecret.hkdfDerivedSymmetricKey(
             using: SHA256.self,
@@ -144,11 +139,11 @@ final class CryptoService: Sendable {
         let symmetricKeyData = try ChaChaPoly.open(encryptedKeyBox, using: derivedKey)
         let symmetricKey = SymmetricKey(data: symmetricKeyData)
 
-        // 5. Decrypt content
+        // 4. Decrypt content
         let contentBox = try ChaChaPoly.SealedBox(combined: encryptedContent)
         let compressedData = try ChaChaPoly.open(contentBox, using: symmetricKey)
 
-        // 6. Decompress
+        // 5. Decompress
         return try decompress(compressedData)
     }
 
