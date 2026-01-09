@@ -14,6 +14,7 @@ struct ChatView: View {
     @StateObject private var viewModel: ChatViewModel
     @State private var messageText = ""
     @State private var debugMessage: StoredMessage?
+    @State private var fullscreenImage: UIImage?
     @FocusState private var isTextFieldFocused: Bool
     @Environment(\.dismiss) private var dismiss
 
@@ -35,7 +36,9 @@ struct ChatView: View {
                     ScrollView {
                         LazyVStack(spacing: AppSpacing.sm) {
                             ForEach(viewModel.messages) { message in
-                                MessageBubble(message: message)
+                                MessageBubble(message: message, onImageTap: { image in
+                                    fullscreenImage = image
+                                })
                                     .id(message.id)
                                     .onLongPressGesture {
                                         Haptics.medium()
@@ -83,6 +86,12 @@ struct ChatView: View {
             MessageDebugSheet(message: message)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+        }
+        .fullScreenCover(item: Binding(
+            get: { fullscreenImage.map { IdentifiableImage(image: $0) } },
+            set: { fullscreenImage = $0?.image }
+        )) { item in
+            FullscreenImageView(image: item.image)
         }
     }
 
@@ -133,6 +142,7 @@ struct ChatView: View {
 
 struct MessageBubble: View {
     let message: StoredMessage
+    var onImageTap: ((UIImage) -> Void)?
 
     var body: some View {
         HStack {
@@ -166,6 +176,9 @@ struct MessageBubble: View {
                 .scaledToFit()
                 .frame(maxWidth: 200, maxHeight: 200)
                 .cornerRadius(AppRadius.md)
+                .onTapGesture {
+                    onImageTap?(uiImage)
+                }
         }
     }
 
@@ -460,6 +473,107 @@ extension StoredMessage: Hashable {
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
+    }
+}
+
+// MARK: - Fullscreen Image Viewer
+
+struct IdentifiableImage: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
+struct FullscreenImageView: View {
+    let image: UIImage
+    @Environment(\.dismiss) private var dismiss
+    @State private var offset: CGSize = .zero
+    @State private var opacity: Double = 1.0
+    @State private var scale: CGFloat = 1.0
+    @State private var lastScale: CGFloat = 1.0
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.opacity(opacity)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        dismiss()
+                    }
+
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .scaleEffect(scale)
+                    .offset(offset)
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                scale = lastScale * value
+                            }
+                            .onEnded { value in
+                                let finalScale = lastScale * value
+                                if finalScale < 0.7 {
+                                    withAnimation(.easeOut(duration: 0.2)) {
+                                        scale = 0.1
+                                        opacity = 0
+                                    }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                        dismiss()
+                                    }
+                                } else if finalScale < 1.0 {
+                                    withAnimation(.spring(response: 0.3)) {
+                                        scale = 1.0
+                                        lastScale = 1.0
+                                    }
+                                } else {
+                                    lastScale = scale
+                                }
+                            }
+                    )
+                    .simultaneousGesture(
+                        DragGesture()
+                            .onChanged { value in
+                                if scale <= 1.0 {
+                                    offset = value.translation
+                                    let progress = min(abs(value.translation.height) / 300, 1.0)
+                                    opacity = 1.0 - progress * 0.5
+                                } else {
+                                    offset = value.translation
+                                }
+                            }
+                            .onEnded { value in
+                                if scale <= 1.0 && abs(value.translation.height) > 100 {
+                                    let direction: CGFloat = value.translation.height > 0 ? 1 : -1
+                                    withAnimation(.easeOut(duration: 0.2)) {
+                                        offset = CGSize(width: 0, height: direction * geometry.size.height)
+                                        opacity = 0
+                                    }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                        dismiss()
+                                    }
+                                } else if scale <= 1.0 {
+                                    withAnimation(.spring(response: 0.3)) {
+                                        offset = .zero
+                                        opacity = 1.0
+                                    }
+                                }
+                            }
+                    )
+                    .onTapGesture(count: 2) {
+                        withAnimation(.spring(response: 0.3)) {
+                            if scale > 1.0 {
+                                scale = 1.0
+                                lastScale = 1.0
+                                offset = .zero
+                            } else {
+                                scale = 2.5
+                                lastScale = 2.5
+                            }
+                        }
+                    }
+            }
+        }
+        .statusBarHidden()
     }
 }
 

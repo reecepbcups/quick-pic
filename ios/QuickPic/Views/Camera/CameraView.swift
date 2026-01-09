@@ -410,11 +410,27 @@ extension CameraViewModel: AVCapturePhotoCaptureDelegate {
             return
         }
 
-        if let pngData = image.pngData() {
+        let resized = resizeImage(image, maxDimension: 720)
+        if let jpegData = resized.jpegData(compressionQuality: 0.5) {
             Task { @MainActor in
-                self.capturedImage = image
-                self.capturedImageData = pngData
+                self.capturedImage = resized
+                self.capturedImageData = jpegData
             }
+        }
+    }
+
+    nonisolated private func resizeImage(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+        let size = image.size
+        let maxSide = max(size.width, size.height)
+
+        guard maxSide > maxDimension else { return image }
+
+        let scale = maxDimension / maxSide
+        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
+
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        return renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
         }
     }
 }
