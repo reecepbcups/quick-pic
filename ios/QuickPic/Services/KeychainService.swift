@@ -8,10 +8,10 @@ enum KeychainError: Error {
     case invalidData
 }
 
-final class KeychainService {
+final class KeychainService: Sendable {
     static let shared = KeychainService()
 
-    private let service = "com.quickpic.app"
+    private let service = "sh.reece.quickpic"
 
     private init() {}
 

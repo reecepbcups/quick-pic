@@ -1,7 +1,7 @@
 import Foundation
 
 /// Manages local storage of decrypted messages with 24-hour expiration
-final class MessageCacheService {
+final class MessageCacheService: @unchecked Sendable {
     static let shared = MessageCacheService()
 
     private let cacheKey = "cached_messages"

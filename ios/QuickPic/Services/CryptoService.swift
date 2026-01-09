@@ -14,7 +14,7 @@ enum CryptoError: Error {
 }
 
 /// Handles all encryption operations using X25519 + XChaCha20-Poly1305
-final class CryptoService {
+final class CryptoService: Sendable {
     static let shared = CryptoService()
 
     private init() {}

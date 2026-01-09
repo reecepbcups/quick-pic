@@ -10,7 +10,7 @@ enum APIError: Error {
     case notFound
 }
 
-final class APIService {
+final class APIService: @unchecked Sendable {
     static let shared = APIService()
 
     private let baseURL: String
@@ -180,8 +180,8 @@ final class APIService {
     }
 
     private func refreshAndRetry<T: Decodable>(_ originalRequest: URLRequest) async throws -> T {
-        let refreshToken = try KeychainService.shared.getRefreshToken()
-        let authResponse = try await refreshToken(refreshToken)
+        let storedRefreshToken = try KeychainService.shared.getRefreshToken()
+        let authResponse = try await refreshToken(storedRefreshToken)
 
         // Store new tokens
         try KeychainService.shared.storeTokens(
