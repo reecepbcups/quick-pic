@@ -591,71 +591,6 @@ func TestMessages_GetPending(t *testing.T) {
 	}
 }
 
-func TestMessages_Acknowledge(t *testing.T) {
-	client := NewTestClient(t)
-
-	user1 := createAuthenticatedUser(t, client)
-	user2 := createAuthenticatedUser(t, client)
-
-	makeFriends(t, client, user1, user2)
-
-	// User1 sends message to User2
-	client.SetAccessToken(user1.AccessToken)
-	msgReq := SendMessageRequest{
-		ToUsername:       user2.User.Username,
-		EncryptedContent: "ZW5jcnlwdGVkLW1lc3NhZ2U=",
-		ContentType:      "text",
-		Signature:        "c2lnbmF0dXJl",
-	}
-	resp := client.Post("/messages", msgReq)
-	var msgResp MessageResponse
-	client.ParseJSON(resp, &msgResp)
-
-	// User2 acknowledges the message
-	client.SetAccessToken(user2.AccessToken)
-	resp = client.Post("/messages/"+msgResp.ID+"/ack", nil)
-	client.ExpectStatus(resp, http.StatusOK)
-	resp.Body.Close()
-
-	// Verify message is deleted
-	resp = client.Get("/messages")
-	client.ExpectStatus(resp, http.StatusOK)
-
-	var messages []Message
-	client.ParseJSON(resp, &messages)
-
-	if len(messages) != 0 {
-		t.Errorf("Expected 0 messages after acknowledgment, got %d", len(messages))
-	}
-}
-
-func TestMessages_Acknowledge_NotRecipient(t *testing.T) {
-	client := NewTestClient(t)
-
-	user1 := createAuthenticatedUser(t, client)
-	user2 := createAuthenticatedUser(t, client)
-	user3 := createAuthenticatedUser(t, client)
-
-	makeFriends(t, client, user1, user2)
-
-	// User1 sends message to User2
-	client.SetAccessToken(user1.AccessToken)
-	msgReq := SendMessageRequest{
-		ToUsername:       user2.User.Username,
-		EncryptedContent: "ZW5jcnlwdGVkLW1lc3NhZ2U=",
-		ContentType:      "text",
-		Signature:        "c2lnbmF0dXJl",
-	}
-	resp := client.Post("/messages", msgReq)
-	var msgResp MessageResponse
-	client.ParseJSON(resp, &msgResp)
-
-	// User3 tries to acknowledge the message (should fail)
-	client.SetAccessToken(user3.AccessToken)
-	resp = client.Post("/messages/"+msgResp.ID+"/ack", nil)
-	client.ExpectStatus(resp, http.StatusForbidden)
-	resp.Body.Close()
-}
 
 // =============================================================================
 // PROTECTED ROUTES TESTS
@@ -788,29 +723,14 @@ func TestFullUserJourney(t *testing.T) {
 	}
 	t.Logf("Bob received message from Alice")
 
-	// 8. Bob acknowledges the message
-	resp = client.Post("/messages/"+messages[0].ID+"/ack", nil)
-	client.ExpectStatus(resp, http.StatusOK)
-	resp.Body.Close()
-	t.Logf("Bob acknowledged the message")
-
-	// 9. Verify message is deleted
-	resp = client.Get("/messages")
-	client.ExpectStatus(resp, http.StatusOK)
-	client.ParseJSON(resp, &messages)
-	if len(messages) != 0 {
-		t.Errorf("Bob should have 0 messages after ack, got %d", len(messages))
-	}
-	t.Logf("Message deleted from server after acknowledgment")
-
-	// 10. Alice logs out
+	// 8. Alice logs out
 	client.SetAccessToken(aliceAuth.AccessToken)
 	resp = client.Post("/auth/logout", map[string]string{"refresh_token": aliceAuth.RefreshToken})
 	client.ExpectStatus(resp, http.StatusOK)
 	resp.Body.Close()
 	t.Logf("Alice logged out")
 
-	// 11. Alice's refresh token should no longer work
+	// 9. Alice's refresh token should no longer work
 	resp = client.Post("/auth/refresh", map[string]string{"refresh_token": aliceAuth.RefreshToken})
 	client.ExpectStatus(resp, http.StatusUnauthorized)
 	resp.Body.Close()

@@ -74,3 +74,4 @@ func (h *MessageHandler) GetMessages(c *gin.Context) {
 
 	c.JSON(http.StatusOK, messages)
 }
+
