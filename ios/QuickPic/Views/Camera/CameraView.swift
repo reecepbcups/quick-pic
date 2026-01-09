@@ -518,7 +518,3 @@ struct CameraPreviewView: UIViewRepresentable {
         uiView.previewLayer?.frame = uiView.bounds
     }
 }
-
-#Preview {
-    CameraView()
-}

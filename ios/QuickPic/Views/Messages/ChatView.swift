@@ -576,20 +576,3 @@ struct FullscreenImageView: View {
         .statusBarHidden()
     }
 }
-
-#Preview {
-    NavigationStack {
-        ChatView(
-            conversation: Conversation(
-                friendUserID: UUID(),
-                friendUsername: "testuser",
-                friendPublicKey: "",
-                friendSince: Date(),
-                lastMessageAt: Date(),
-                unreadCount: 2,
-                createdAt: Date()
-            ),
-            onMessagesViewed: {}
-        )
-    }
-}
