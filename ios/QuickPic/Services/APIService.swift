@@ -20,7 +20,9 @@ final class APIService: @unchecked Sendable {
 
     private init() {
         #if DEBUG
-        self.baseURL = "http://localhost:8080"
+        // Use your computer's local IP for testing on physical device
+        // Make sure phone and computer are on the same WiFi network
+        self.baseURL = "http://172.21.11.82:8080"
         #else
         self.baseURL = "https://api.quickpic.app"  // Production URL
         #endif

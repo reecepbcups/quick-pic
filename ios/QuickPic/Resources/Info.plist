@@ -49,5 +49,18 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>QuickPic needs camera access to take photos and send them to your friends.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>QuickPic needs local network access to connect to the development server.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_http._tcp</string>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

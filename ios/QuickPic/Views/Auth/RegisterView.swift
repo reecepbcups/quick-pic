@@ -142,14 +142,8 @@ struct RegisterView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: { dismiss() }) {
-                    Image(systemName: "arrow.left")
-                        .foregroundColor(.textPrimary)
-                }
-            }
-        }
+        .navigationBarBackButtonHidden(false)
+        .tint(.textPrimary)
     }
 
     private func register() {
