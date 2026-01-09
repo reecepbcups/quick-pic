@@ -11,9 +11,31 @@ default:
 build:
     go build -o bin/server ./cmd/server
 
-# Run the server
+# Run the server (default SQLite)
 run:
     go run ./cmd/server
+
+# Run server with SQLite backend
+run-sqlite:
+    BACKEND_TYPE=sqlite DATABASE_PATH=./quickpic.db go run ./cmd/server
+
+# Run server with blockchain backend (requires anvil running and contract deployed)
+run-blockchain contract_address:
+    BACKEND_TYPE=blockchain \
+    BLOCKCHAIN_CONTRACT_ADDRESS={{contract_address}} \
+    go run ./cmd/server
+
+# Start local Anvil node
+anvil:
+    anvil --host 0.0.0.0
+
+# Deploy contract to local Anvil
+deploy-contract:
+    cd ../solidity && forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
+
+# Build Solidity contracts
+build-contracts:
+    cd ../solidity && forge build
 
 # Run all tests with race detection
 test: test-unit test-e2e

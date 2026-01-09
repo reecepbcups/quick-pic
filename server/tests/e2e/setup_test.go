@@ -11,14 +11,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/quickpic/server/internal/api"
-	"github.com/quickpic/server/internal/repository"
+	"github.com/quickpic/server/internal/backend"
+	"github.com/quickpic/server/internal/repository/sqlite"
 	"github.com/quickpic/server/internal/services"
 )
 
 var (
-	testServer *httptest.Server
-	testRouter *gin.Engine
-	testDB     *repository.DB
+	testServer  *httptest.Server
+	testRouter  *gin.Engine
+	testBackend *sqlite.Backend
 )
 
 // TestMain sets up and tears down the test environment
@@ -28,37 +29,29 @@ func TestMain(m *testing.M) {
 
 	jwtSecret := "test-secret-key-for-testing"
 
-	// Initialize in-memory SQLite database
-	var err error
-	testDB, err = repository.NewDB(":memory:")
+	// Initialize in-memory SQLite backend
+	cfg := backend.DefaultSQLiteConfig(":memory:")
+	result, err := backend.New(cfg)
 	if err != nil {
-		fmt.Printf("Failed to create test database: %v\n", err)
+		fmt.Printf("Failed to create test backend: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Run migrations
-	if err := testDB.Migrate(); err != nil {
-		fmt.Printf("Failed to run migrations: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Initialize repositories
-	userRepo := repository.NewUserRepository(testDB)
-	friendRepo := repository.NewFriendRepository(testDB)
-	messageRepo := repository.NewMessageRepository(testDB)
+	// Store reference to backend for reset functionality
+	testBackend = result.Backend.(*sqlite.Backend)
 
 	// Initialize services
-	authService := services.NewAuthService(userRepo, jwtSecret)
-	userService := services.NewUserService(userRepo)
-	friendService := services.NewFriendService(friendRepo, userRepo)
-	messageService := services.NewMessageService(messageRepo, friendRepo)
+	authService := services.NewAuthService(result.Repos.Users, jwtSecret)
+	userService := services.NewUserService(result.Repos.Users)
+	friendService := services.NewFriendService(result.Repos.Friends, result.Repos.Users)
+	messageService := services.NewMessageService(result.Repos.Messages, result.Repos.Friends)
 
 	// Initialize router
 	testRouter = gin.New()
 	testRouter.Use(gin.Recovery())
 
 	// Setup routes
-	api.SetupRoutesWithRepo(testRouter, authService, userService, friendService, messageService, userRepo)
+	api.SetupRoutes(testRouter, authService, userService, friendService, messageService, result.Repos.Users)
 
 	// Create test server
 	testServer = httptest.NewServer(testRouter)
@@ -68,7 +61,7 @@ func TestMain(m *testing.M) {
 
 	// Cleanup
 	testServer.Close()
-	testDB.Close()
+	result.Backend.Close()
 
 	os.Exit(code)
 }
@@ -82,7 +75,7 @@ type TestClient struct {
 
 func NewTestClient(t *testing.T) *TestClient {
 	// Reset database before each test
-	testDB.Reset()
+	testBackend.Reset()
 
 	return &TestClient{
 		t:       t,

@@ -4,8 +4,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/quickpic/server/internal/api/handlers"
 	"github.com/quickpic/server/internal/api/middleware"
-	"github.com/quickpic/server/internal/repository"
 	"github.com/quickpic/server/internal/services"
+	"github.com/quickpic/server/internal/storage"
 )
 
 func SetupRoutes(
@@ -14,18 +14,7 @@ func SetupRoutes(
 	userService *services.UserService,
 	friendService *services.FriendService,
 	messageService *services.MessageService,
-) {
-	// We need user repo for message handler - get it through a different approach
-	// For now, pass it through the setup function
-}
-
-func SetupRoutesWithRepo(
-	router *gin.Engine,
-	authService *services.AuthService,
-	userService *services.UserService,
-	friendService *services.FriendService,
-	messageService *services.MessageService,
-	userRepo *repository.UserRepository,
+	userRepo storage.UserRepo,
 ) {
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)

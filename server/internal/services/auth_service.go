@@ -10,7 +10,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/quickpic/server/internal/models"
-	"github.com/quickpic/server/internal/repository"
+	"github.com/quickpic/server/internal/storage"
 	"golang.org/x/crypto/argon2"
 )
 
@@ -20,11 +20,11 @@ const (
 )
 
 type AuthService struct {
-	userRepo  *repository.UserRepository
+	userRepo  storage.UserRepo
 	jwtSecret []byte
 }
 
-func NewAuthService(userRepo *repository.UserRepository, jwtSecret string) *AuthService {
+func NewAuthService(userRepo storage.UserRepo, jwtSecret string) *AuthService {
 	return &AuthService{
 		userRepo:  userRepo,
 		jwtSecret: []byte(jwtSecret),

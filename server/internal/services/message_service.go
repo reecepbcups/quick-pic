@@ -5,15 +5,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/quickpic/server/internal/models"
-	"github.com/quickpic/server/internal/repository"
+	"github.com/quickpic/server/internal/storage"
 )
 
 type MessageService struct {
-	messageRepo *repository.MessageRepository
-	friendRepo  *repository.FriendRepository
+	messageRepo storage.MessageRepo
+	friendRepo  storage.FriendRepo
 }
 
-func NewMessageService(messageRepo *repository.MessageRepository, friendRepo *repository.FriendRepository) *MessageService {
+func NewMessageService(messageRepo storage.MessageRepo, friendRepo storage.FriendRepo) *MessageService {
 	return &MessageService{
 		messageRepo: messageRepo,
 		friendRepo:  friendRepo,

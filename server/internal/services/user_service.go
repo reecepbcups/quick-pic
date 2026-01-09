@@ -4,14 +4,14 @@ import (
 	"context"
 
 	"github.com/quickpic/server/internal/models"
-	"github.com/quickpic/server/internal/repository"
+	"github.com/quickpic/server/internal/storage"
 )
 
 type UserService struct {
-	userRepo *repository.UserRepository
+	userRepo storage.UserRepo
 }
 
-func NewUserService(userRepo *repository.UserRepository) *UserService {
+func NewUserService(userRepo storage.UserRepo) *UserService {
 	return &UserService{userRepo: userRepo}
 }
 
