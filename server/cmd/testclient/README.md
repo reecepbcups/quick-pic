@@ -43,6 +43,9 @@ go run ./cmd/testclient accept reecepbcups abc123-full-request-id
 
 # Send a message from maddie to reecepbcups
 go run ./cmd/testclient message --from maddie --to reecepbcups "Hello from test client!"
+
+# get messages sent to maddie
+go run ./cmd/testclient receive maddie
 ```
 
 ### Full test flow with iOS app
