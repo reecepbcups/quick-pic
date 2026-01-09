@@ -3,16 +3,15 @@
 //  QuickPic
 //
 //  View-once message display with auto-hide after viewing
+//  Note: This is now primarily used through ChatView's MessageContentView
 //
 
 import SwiftUI
 
 struct MessageView: View {
-    let message: CachedMessage
+    let message: StoredMessage
     let onDismiss: () -> Void
 
-    @State private var isHolding = false
-    @State private var holdProgress: CGFloat = 0
     @State private var showContent = false
     @Environment(\.dismiss) private var dismiss
 
@@ -36,13 +35,7 @@ struct MessageView: View {
         }
         .gesture(
             DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    if !isHolding {
-                        isHolding = true
-                    }
-                }
                 .onEnded { _ in
-                    isHolding = false
                     // Dismiss when released
                     onDismiss()
                     dismiss()
@@ -53,20 +46,6 @@ struct MessageView: View {
     @ViewBuilder
     private var contentView: some View {
         VStack {
-            // Header
-            HStack {
-                Text(message.fromUsername)
-                    .font(.headline)
-                    .foregroundColor(.white)
-
-                Spacer()
-
-                Text(message.contentType == .image ? "Photo" : "Message")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
-            .padding()
-
             Spacer()
 
             // Content
@@ -126,13 +105,16 @@ struct MessageView: View {
 
 #Preview {
     MessageView(
-        message: CachedMessage(
+        message: StoredMessage(
             id: UUID(),
-            fromUsername: "testuser",
+            conversationID: UUID(),
             contentType: .text,
             decryptedContent: "Hello, this is a test message!".data(using: .utf8)!,
-            receivedAt: Date(),
-            hasBeenViewed: false
+            isFromMe: false,
+            hasBeenViewed: false,
+            serverDeleted: false,
+            createdAt: Date(),
+            receivedAt: Date()
         ),
         onDismiss: {}
     )

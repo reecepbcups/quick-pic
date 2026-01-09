@@ -23,11 +23,17 @@
 		EC53E0FC29D9F8CE395ED42E /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 995D1E5E8A8C2DEA1A53B2F8 /* LoginView.swift */; };
 		F43E5FC54180626B54088946 /* Friend.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14794B13B5BBA57075E3E00 /* Friend.swift */; };
 		F823DFC79C206436EE80DBE6 /* MessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 653B5DD1357DEEAAB7BC22EF /* MessageView.swift */; };
+		AA11BB22CC33DD44EE55FF66 /* DatabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF67 /* DatabaseService.swift */; };
+		BB22CC33DD44EE55FF66AA11 /* SyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB22CC33DD44EE55FF66AA12 /* SyncService.swift */; };
+		CC33DD44EE55FF66AA11BB22 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC33DD44EE55FF66AA11BB23 /* ChatView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0951B9B13D0BBAB7F521813D /* MessageCacheService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageCacheService.swift; sourceTree = "<group>"; };
 		0C6F5E1B0E87C5274AD104C3 /* CryptoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CryptoService.swift; sourceTree = "<group>"; };
+		AA11BB22CC33DD44EE55FF67 /* DatabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseService.swift; sourceTree = "<group>"; };
+		BB22CC33DD44EE55FF66AA12 /* SyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncService.swift; sourceTree = "<group>"; };
+		CC33DD44EE55FF66AA11BB23 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		1E9C15ACDAA5499817F22936 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
 		24B12AE56690A3798E7767E6 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
 		33B87A15FF9C49FB5C3488C4 /* FriendsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsListView.swift; sourceTree = "<group>"; };
@@ -52,8 +58,10 @@
 				24B12AE56690A3798E7767E6 /* APIService.swift */,
 				9304D496CE3F57AFCCB806EC /* AuthManager.swift */,
 				0C6F5E1B0E87C5274AD104C3 /* CryptoService.swift */,
+				AA11BB22CC33DD44EE55FF67 /* DatabaseService.swift */,
 				C948F390B54B0405808847F4 /* KeychainService.swift */,
 				0951B9B13D0BBAB7F521813D /* MessageCacheService.swift */,
+				BB22CC33DD44EE55FF66AA12 /* SyncService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -92,6 +100,7 @@
 		796851C47645D6976C957742 /* Messages */ = {
 			isa = PBXGroup;
 			children = (
+				CC33DD44EE55FF66AA11BB23 /* ChatView.swift */,
 				3A8BE2684DD8AA1B9DBAEFF2 /* InboxView.swift */,
 				653B5DD1357DEEAAB7BC22EF /* MessageView.swift */,
 			);
@@ -203,7 +212,9 @@
 				0E45E47C66B1603EBD8C72E8 /* AddFriendView.swift in Sources */,
 				C524D1EC2DC725CB56830C94 /* AuthManager.swift in Sources */,
 				09A324DE20BBF51743A42C66 /* CameraView.swift in Sources */,
+				CC33DD44EE55FF66AA11BB22 /* ChatView.swift in Sources */,
 				4270AF292561A70434A99C80 /* CryptoService.swift in Sources */,
+				AA11BB22CC33DD44EE55FF66 /* DatabaseService.swift in Sources */,
 				F43E5FC54180626B54088946 /* Friend.swift in Sources */,
 				0C349FAF1E54974C59A8900A /* FriendsListView.swift in Sources */,
 				83A69F26089E8B4BF1A2F515 /* InboxView.swift in Sources */,
@@ -214,6 +225,7 @@
 				F823DFC79C206436EE80DBE6 /* MessageView.swift in Sources */,
 				0F7AC71555D953F78DD72BCA /* QuickPicApp.swift in Sources */,
 				D9D8ECF29ACA9D5B3D81DAD6 /* RegisterView.swift in Sources */,
+				BB22CC33DD44EE55FF66AA11 /* SyncService.swift in Sources */,
 				6AC42FB5B1FEB0EA492AF263 /* User.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

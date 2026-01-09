@@ -3,6 +3,7 @@ import SwiftUI
 struct FriendsListView: View {
     @StateObject private var viewModel = FriendsViewModel()
     @State private var showAddFriend = false
+    @State private var showInbox = false
 
     var body: some View {
         NavigationStack {
@@ -22,21 +23,41 @@ struct FriendsListView: View {
 
                 // Friends Section
                 Section("Friends") {
-                    if viewModel.friends.isEmpty {
+                    if viewModel.friends.isEmpty && !viewModel.isLoading {
                         Text("No friends yet")
                             .foregroundColor(.secondary)
                     } else {
                         ForEach(viewModel.friends) { friend in
-                            FriendRow(friend: friend)
+                            NavigationLink(destination: friendChatDestination(for: friend)) {
+                                FriendRow(friend: friend)
+                            }
                         }
                     }
                 }
             }
             .navigationTitle("Friends")
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { showInbox = true }) {
+                        Image(systemName: "tray.fill")
+                            .foregroundColor(.yellow)
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showAddFriend = true }) {
-                        Image(systemName: "person.badge.plus")
+                    HStack(spacing: 16) {
+                        Button(action: { Task { await viewModel.refresh() } }) {
+                            if viewModel.isLoading {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                        }
+                        .disabled(viewModel.isLoading)
+
+                        Button(action: { showAddFriend = true }) {
+                            Image(systemName: "person.badge.plus")
+                        }
                     }
                 }
             }
@@ -48,15 +69,40 @@ struct FriendsListView: View {
                     Task { await viewModel.refresh() }
                 })
             }
-            .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
-                Button("OK") { viewModel.errorMessage = nil }
+            .navigationDestination(isPresented: $showInbox) {
+                InboxView()
+            }
+            .alert("Error", isPresented: $viewModel.showError) {
+                Button("Retry") {
+                    Task { await viewModel.refresh() }
+                }
+                Button("OK", role: .cancel) {}
             } message: {
-                Text(viewModel.errorMessage ?? "")
+                Text(viewModel.errorMessage ?? "Failed to load friends")
             }
             .task {
                 await viewModel.loadData()
             }
+            .onAppear {
+                // Auto-refresh when view appears
+                if viewModel.friends.isEmpty && !viewModel.isLoading {
+                    Task { await viewModel.refresh() }
+                }
+            }
         }
+    }
+
+    @ViewBuilder
+    private func friendChatDestination(for friend: Friend) -> some View {
+        let conversation = Conversation(
+            friendUserID: friend.userID,
+            friendUsername: friend.username,
+            friendPublicKey: friend.publicKey,
+            lastMessageAt: nil,
+            unreadCount: 0,
+            createdAt: friend.since
+        )
+        ChatView(conversation: conversation, onMessagesViewed: {})
     }
 }
 
@@ -81,6 +127,12 @@ struct FriendRow: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+
+            Spacer()
+
+            Image(systemName: "bubble.left.fill")
+                .foregroundColor(.yellow.opacity(0.7))
+                .font(.caption)
         }
     }
 }
@@ -137,16 +189,30 @@ class FriendsViewModel: ObservableObject {
     @Published var friends: [Friend] = []
     @Published var pendingRequests: [FriendRequest] = []
     @Published var errorMessage: String?
+    @Published var showError = false
     @Published var isLoading = false
+
+    private var lastLoadTime: Date?
+    private let minRefreshInterval: TimeInterval = 5 // Minimum 5 seconds between refreshes
 
     func loadData() async {
         await refresh()
     }
 
     func refresh() async {
-        isLoading = true
-        defer { isLoading = false }
+        // Prevent too frequent refreshes
+        if let lastLoad = lastLoadTime,
+           Date().timeIntervalSince(lastLoad) < minRefreshInterval {
+            return
+        }
 
+        isLoading = true
+        defer {
+            isLoading = false
+            lastLoadTime = Date()
+        }
+
+        // Use a timeout for the API calls
         do {
             async let friendsTask = APIService.shared.getFriends()
             async let requestsTask = APIService.shared.getPendingFriendRequests()
@@ -154,8 +220,18 @@ class FriendsViewModel: ObservableObject {
             let (loadedFriends, loadedRequests) = try await (friendsTask, requestsTask)
             friends = loadedFriends
             pendingRequests = loadedRequests
+
+            // Sync friends to conversations database
+            let db = DatabaseService.shared
+            for friend in loadedFriends {
+                _ = db.getOrCreateConversation(for: friend)
+            }
         } catch {
-            errorMessage = "Failed to load friends"
+            // Only show error if we have no data
+            if friends.isEmpty {
+                errorMessage = getErrorMessage(for: error)
+                showError = true
+            }
         }
     }
 
@@ -163,9 +239,12 @@ class FriendsViewModel: ObservableObject {
         Task {
             do {
                 try await APIService.shared.acceptFriendRequest(requestID: request.id)
+                // Remove from local list immediately for responsiveness
+                pendingRequests.removeAll { $0.id == request.id }
                 await refresh()
             } catch {
                 errorMessage = "Failed to accept request"
+                showError = true
             }
         }
     }
@@ -174,11 +253,27 @@ class FriendsViewModel: ObservableObject {
         Task {
             do {
                 try await APIService.shared.rejectFriendRequest(requestID: request.id)
-                await refresh()
+                // Remove from local list immediately for responsiveness
+                pendingRequests.removeAll { $0.id == request.id }
             } catch {
                 errorMessage = "Failed to reject request"
+                showError = true
             }
         }
+    }
+
+    private func getErrorMessage(for error: Error) -> String {
+        if let apiError = error as? APIError {
+            switch apiError {
+            case .unauthorized:
+                return "Session expired. Please log in again."
+            case .requestFailed:
+                return "Network error. Check your connection."
+            default:
+                return "Failed to load friends. Pull to retry."
+            }
+        }
+        return "Failed to load friends. Pull to retry."
     }
 }
 

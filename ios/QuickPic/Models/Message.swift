@@ -46,6 +46,7 @@ struct SendMessageRequest: Codable {
 /// Decrypted message stored locally for 24-hour cache
 struct CachedMessage: Codable, Identifiable {
     let id: UUID
+    let fromUserID: UUID
     let fromUsername: String
     let contentType: ContentType
     let decryptedContent: Data
@@ -54,5 +55,20 @@ struct CachedMessage: Codable, Identifiable {
 
     var isExpired: Bool {
         Date().timeIntervalSince(receivedAt) > 24 * 60 * 60
+    }
+
+    /// Convert to StoredMessage for database storage
+    func toStoredMessage() -> StoredMessage {
+        StoredMessage(
+            id: id,
+            conversationID: fromUserID,
+            contentType: contentType,
+            decryptedContent: decryptedContent,
+            isFromMe: false,
+            hasBeenViewed: hasBeenViewed,
+            serverDeleted: false,
+            createdAt: receivedAt,
+            receivedAt: receivedAt
+        )
     }
 }

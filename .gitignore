@@ -69,3 +69,6 @@ server/testclient
 # Logs
 *.log
 logs/
+
+# Other
+testbot.json

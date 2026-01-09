@@ -2,6 +2,8 @@
 //  CameraView.swift
 //  QuickPic
 //
+//  Camera view for capturing and sending photos to friends
+//
 
 import SwiftUI
 import AVFoundation
@@ -59,22 +61,6 @@ struct CameraView: View {
                             }
                         }
                         .padding(.bottom, 40)
-                    }
-                }
-
-                // Text message option
-                if viewModel.capturedImage == nil {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            NavigationLink(destination: ComposeTextView()) {
-                                Image(systemName: "text.bubble")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .padding()
-                            }
-                        }
-                        Spacer()
                     }
                 }
             }
@@ -150,28 +136,45 @@ struct FriendPickerView: View {
 
     var body: some View {
         NavigationStack {
-            List(viewModel.friends) { friend in
-                Button(action: { selectedFriend = friend }) {
-                    HStack {
-                        Circle()
-                            .fill(Color.yellow.opacity(0.3))
-                            .frame(width: 40, height: 40)
-                            .overlay(
-                                Text(friend.username.prefix(1).uppercased())
-                                    .fontWeight(.semibold)
-                            )
+            Group {
+                if viewModel.isLoading {
+                    ProgressView("Loading friends...")
+                } else if viewModel.friends.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "person.2.slash")
+                            .font(.system(size: 50))
+                            .foregroundColor(.secondary)
+                        Text("No friends yet")
+                            .font(.headline)
+                        Text("Add friends to send them photos")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    List(viewModel.friends) { friend in
+                        Button(action: { selectedFriend = friend }) {
+                            HStack {
+                                Circle()
+                                    .fill(Color.yellow.opacity(0.3))
+                                    .frame(width: 40, height: 40)
+                                    .overlay(
+                                        Text(friend.username.prefix(1).uppercased())
+                                            .fontWeight(.semibold)
+                                    )
 
-                        Text(friend.username)
+                                Text(friend.username)
 
-                        Spacer()
+                                Spacer()
 
-                        if selectedFriend?.id == friend.id {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.yellow)
+                                if selectedFriend?.id == friend.id {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.yellow)
+                                }
+                            }
                         }
+                        .foregroundColor(.primary)
                     }
                 }
-                .foregroundColor(.primary)
             }
             .navigationTitle("Send to")
             .navigationBarTitleDisplayMode(.inline)
@@ -200,92 +203,6 @@ struct FriendPickerView: View {
             do {
                 try await viewModel.sendImage(data, to: friend)
                 onSent()
-            } catch {
-                print("Failed to send: \(error)")
-            }
-            isSending = false
-        }
-    }
-}
-
-struct ComposeTextView: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var messageText = ""
-    @State private var selectedFriend: Friend?
-    @StateObject private var viewModel = FriendPickerViewModel()
-    @State private var isSending = false
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Friend selector
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(viewModel.friends) { friend in
-                        Button(action: { selectedFriend = friend }) {
-                            VStack {
-                                Circle()
-                                    .fill(selectedFriend?.id == friend.id ? Color.yellow : Color.gray.opacity(0.3))
-                                    .frame(width: 50, height: 50)
-                                    .overlay(
-                                        Text(friend.username.prefix(1).uppercased())
-                                            .foregroundColor(selectedFriend?.id == friend.id ? .black : .primary)
-                                            .fontWeight(.semibold)
-                                    )
-
-                                Text(friend.username)
-                                    .font(.caption)
-                                    .foregroundColor(selectedFriend?.id == friend.id ? .yellow : .secondary)
-                            }
-                        }
-                    }
-                }
-                .padding()
-            }
-
-            Divider()
-
-            // Text input
-            TextEditor(text: $messageText)
-                .padding()
-                .frame(maxHeight: .infinity)
-
-            // Send button
-            Button(action: sendMessage) {
-                HStack {
-                    if isSending {
-                        ProgressView()
-                            .tint(.black)
-                    } else {
-                        Text("Send")
-                        Image(systemName: "paperplane.fill")
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(canSend ? Color.yellow : Color.gray)
-                .foregroundColor(.black)
-            }
-            .disabled(!canSend)
-        }
-        .navigationTitle("New Message")
-        .navigationBarTitleDisplayMode(.inline)
-        .task {
-            await viewModel.loadFriends()
-        }
-    }
-
-    private var canSend: Bool {
-        selectedFriend != nil && !messageText.isEmpty && !isSending
-    }
-
-    private func sendMessage() {
-        guard let friend = selectedFriend, !messageText.isEmpty else { return }
-
-        isSending = true
-        Task {
-            do {
-                try await viewModel.sendText(messageText, to: friend)
-                dismiss()
             } catch {
                 print("Failed to send: \(error)")
             }
@@ -399,12 +316,16 @@ extension CameraViewModel: AVCapturePhotoCaptureDelegate {
 @MainActor
 class FriendPickerViewModel: ObservableObject {
     @Published var friends: [Friend] = []
+    @Published var isLoading = false
 
     private let api = APIService.shared
     private let crypto = CryptoService.shared
-    private let keychain = KeychainService.shared
+    private let db = DatabaseService.shared
 
     func loadFriends() async {
+        isLoading = true
+        defer { isLoading = false }
+
         do {
             friends = try await api.getFriends()
         } catch {
@@ -422,32 +343,30 @@ class FriendPickerViewModel: ObservableObject {
             senderPrivateKey: privateKey
         )
 
-        _ = try await api.sendMessage(
+        let response = try await api.sendMessage(
             to: friend.username,
             encryptedContent: encryptedData,
             contentType: .image,
             signature: signature
         )
-    }
 
-    func sendText(_ text: String, to friend: Friend) async throws {
-        guard let textData = text.data(using: .utf8) else { return }
-
-        let privateKey = try crypto.getPrivateKey()
-        let recipientPublicKey = try crypto.publicKeyFromBase64(friend.publicKey)
-
-        let (encryptedData, signature) = try crypto.encrypt(
-            content: textData,
-            recipientPublicKey: recipientPublicKey,
-            senderPrivateKey: privateKey
+        // Save sent message locally to the conversation
+        let storedMessage = StoredMessage(
+            id: response.id,
+            conversationID: friend.userID,
+            contentType: .image,
+            decryptedContent: imageData,
+            isFromMe: true,
+            hasBeenViewed: true,
+            serverDeleted: true,
+            createdAt: response.createdAt,
+            receivedAt: Date()
         )
 
-        _ = try await api.sendMessage(
-            to: friend.username,
-            encryptedContent: encryptedData,
-            contentType: .text,
-            signature: signature
-        )
+        db.saveMessage(storedMessage)
+
+        // Ensure conversation exists
+        _ = db.getOrCreateConversation(for: friend)
     }
 }
 

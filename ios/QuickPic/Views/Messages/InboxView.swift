@@ -2,22 +2,24 @@
 //  InboxView.swift
 //  QuickPic
 //
+//  Conversation-based inbox showing friends with message threads
+//
 
 import SwiftUI
 
 struct InboxView: View {
     @StateObject private var viewModel = InboxViewModel()
-    @State private var selectedMessage: CachedMessage?
+    @State private var selectedConversation: Conversation?
 
     var body: some View {
         NavigationStack {
             Group {
-                if viewModel.isLoading && viewModel.messages.isEmpty {
-                    ProgressView("Loading messages...")
-                } else if viewModel.messages.isEmpty {
+                if viewModel.isLoading && viewModel.conversations.isEmpty {
+                    ProgressView("Loading conversations...")
+                } else if viewModel.conversations.isEmpty {
                     EmptyInboxView()
                 } else {
-                    messagesList
+                    conversationsList
                 }
             }
             .navigationTitle("Inbox")
@@ -36,24 +38,23 @@ struct InboxView: View {
             } message: {
                 Text(viewModel.errorMessage ?? "")
             }
-            .fullScreenCover(item: $selectedMessage) { message in
-                MessageView(message: message) {
-                    viewModel.markAsViewed(message)
-                    selectedMessage = nil
-                }
+            .navigationDestination(item: $selectedConversation) { conversation in
+                ChatView(conversation: conversation, onMessagesViewed: {
+                    viewModel.markConversationRead(conversation)
+                })
             }
             .task {
-                await viewModel.loadMessages()
+                await viewModel.loadConversations()
             }
         }
     }
 
-    private var messagesList: some View {
+    private var conversationsList: some View {
         List {
-            ForEach(viewModel.messages) { message in
-                MessageRow(message: message)
+            ForEach(viewModel.conversations) { conversation in
+                ConversationRow(conversation: conversation)
                     .onTapGesture {
-                        selectedMessage = message
+                        selectedConversation = conversation
                     }
             }
         }
@@ -61,48 +62,51 @@ struct InboxView: View {
     }
 }
 
-struct MessageRow: View {
-    let message: CachedMessage
+struct ConversationRow: View {
+    let conversation: Conversation
 
     var body: some View {
         HStack(spacing: 12) {
             // Avatar
             ZStack {
                 Circle()
-                    .fill(message.hasBeenViewed ? Color.gray.opacity(0.3) : Color.yellow.opacity(0.3))
+                    .fill(conversation.unreadCount > 0 ? Color.yellow.opacity(0.3) : Color.gray.opacity(0.3))
                     .frame(width: 50, height: 50)
 
-                if message.contentType == .image {
-                    Image(systemName: "photo.fill")
-                        .foregroundColor(message.hasBeenViewed ? .gray : .yellow)
-                } else {
-                    Image(systemName: "text.bubble.fill")
-                        .foregroundColor(message.hasBeenViewed ? .gray : .yellow)
-                }
+                Text(conversation.friendUsername.prefix(1).uppercased())
+                    .fontWeight(.semibold)
+                    .foregroundColor(conversation.unreadCount > 0 ? .yellow : .primary)
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(message.fromUsername)
-                    .fontWeight(message.hasBeenViewed ? .regular : .semibold)
+                Text(conversation.friendUsername)
+                    .fontWeight(conversation.unreadCount > 0 ? .semibold : .regular)
 
-                HStack {
-                    Text(message.contentType == .image ? "Sent a photo" : "Sent a message")
-                        .font(.subheadline)
+                if let lastMessage = conversation.lastMessageAt {
+                    Text(timeAgo(lastMessage))
+                        .font(.caption)
                         .foregroundColor(.secondary)
-
-                    if !message.hasBeenViewed {
-                        Circle()
-                            .fill(Color.yellow)
-                            .frame(width: 8, height: 8)
-                    }
+                } else {
+                    Text("Start a conversation")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-
-                Text(timeAgo(message.receivedAt))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
 
             Spacer()
+
+            if conversation.unreadCount > 0 {
+                ZStack {
+                    Circle()
+                        .fill(Color.yellow)
+                        .frame(width: 24, height: 24)
+
+                    Text("\(conversation.unreadCount)")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.black)
+                }
+            }
 
             Image(systemName: "chevron.right")
                 .foregroundColor(.secondary)
@@ -121,14 +125,14 @@ struct MessageRow: View {
 struct EmptyInboxView: View {
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "tray")
+            Image(systemName: "bubble.left.and.bubble.right")
                 .font(.system(size: 50))
                 .foregroundColor(.secondary)
 
-            Text("No messages yet")
+            Text("No conversations yet")
                 .font(.headline)
 
-            Text("Messages from friends will appear here")
+            Text("Add friends to start chatting")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
@@ -137,44 +141,79 @@ struct EmptyInboxView: View {
 
 @MainActor
 class InboxViewModel: ObservableObject {
-    @Published var messages: [CachedMessage] = []
+    @Published var conversations: [Conversation] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
 
     private let api = APIService.shared
-    private let cache = MessageCacheService.shared
+    private let db = DatabaseService.shared
     private let crypto = CryptoService.shared
-    private let keychain = KeychainService.shared
 
-    func loadMessages() async {
+    func loadConversations() async {
         isLoading = true
-        defer { isLoading = false }
 
-        // Load cached messages first
-        messages = cache.getCachedMessages().sorted { $0.receivedAt > $1.receivedAt }
+        // First sync friends to create conversations
+        await syncFriendsToConversations()
 
         // Fetch new messages from server
-        await refresh()
+        await fetchNewMessages()
+
+        // Load all conversations from database
+        conversations = db.getAllConversations()
+        print("Loaded \(conversations.count) conversations")
+
+        isLoading = false
     }
 
     func refresh() async {
+        await syncFriendsToConversations()
+        await fetchNewMessages()
+        conversations = db.getAllConversations()
+    }
+
+    private func fetchNewMessages() async {
         do {
             let serverMessages = try await api.getMessages()
+            print("Fetched \(serverMessages.count) messages from server")
 
             for message in serverMessages {
                 await processMessage(message)
             }
-
-            // Reload from cache
-            messages = cache.getCachedMessages().sorted { $0.receivedAt > $1.receivedAt }
         } catch {
-            errorMessage = "Failed to fetch messages"
+            // Don't show error for empty messages or 404
+            if case APIError.httpError(let code, _) = error, code == 404 {
+                return
+            }
+            if case APIError.notFound = error {
+                return
+            }
+            print("Failed to fetch messages: \(error)")
+        }
+    }
+
+    private func syncFriendsToConversations() async {
+        do {
+            let friends = try await api.getFriends()
+            print("Syncing \(friends.count) friends to conversations")
+
+            for friend in friends {
+                let conv = db.getOrCreateConversation(for: friend)
+                print("Created/found conversation for \(conv.friendUsername)")
+            }
+        } catch {
+            print("Failed to sync friends: \(error)")
+            errorMessage = "Failed to load friends"
         }
     }
 
     private func processMessage(_ message: Message) async {
+        // Skip if we already have this message
+        guard !db.messageExists(id: message.id) else {
+            print("Message \(message.id) already exists, skipping")
+            return
+        }
+
         do {
-            // Get sender's public key and decrypt
             let senderPublicKey = try crypto.publicKeyFromBase64(message.fromPublicKey)
             let privateKey = try crypto.getPrivateKey()
 
@@ -185,30 +224,46 @@ class InboxViewModel: ObservableObject {
                 recipientPrivateKey: privateKey
             )
 
-            // Create cached message
-            let cachedMessage = CachedMessage(
+            // Create stored message
+            let storedMessage = StoredMessage(
                 id: message.id,
-                fromUsername: message.fromUsername,
+                conversationID: message.fromUserID,
                 contentType: message.contentType,
                 decryptedContent: decryptedData,
-                receivedAt: Date(),
-                hasBeenViewed: false
+                isFromMe: false,
+                hasBeenViewed: false,
+                serverDeleted: false,
+                createdAt: message.createdAt,
+                receivedAt: Date()
             )
 
-            cache.cache(message: cachedMessage)
+            db.saveMessage(storedMessage)
+            db.incrementUnreadCount(friendUserID: message.fromUserID)
+            print("Saved message \(message.id) from \(message.fromUsername)")
 
-            // Acknowledge receipt to server
-            try await api.acknowledgeMessage(id: message.id)
+            // Note: We DON'T acknowledge to server here anymore
+            // We wait until the message is actually viewed
         } catch {
             print("Failed to process message \(message.id): \(error)")
         }
     }
 
-    func markAsViewed(_ message: CachedMessage) {
-        cache.markAsViewed(messageID: message.id)
-        if let index = messages.firstIndex(where: { $0.id == message.id }) {
-            messages[index].hasBeenViewed = true
+    func markConversationRead(_ conversation: Conversation) {
+        db.resetUnreadCount(friendUserID: conversation.friendUserID)
+        if let index = conversations.firstIndex(where: { $0.id == conversation.id }) {
+            conversations[index].unreadCount = 0
         }
+    }
+}
+
+// Make Conversation conform to Hashable for navigation
+extension Conversation: Hashable {
+    static func == (lhs: Conversation, rhs: Conversation) -> Bool {
+        lhs.friendUserID == rhs.friendUserID
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(friendUserID)
     }
 }
 

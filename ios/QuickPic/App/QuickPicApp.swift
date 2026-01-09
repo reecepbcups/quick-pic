@@ -26,8 +26,16 @@ struct ContentView: View {
                 LaunchView()
             } else if authManager.isAuthenticated {
                 MainTabView()
+                    .onAppear {
+                        // Start background sync when authenticated
+                        SyncService.shared.startSyncTimer()
+                    }
             } else {
                 LoginView()
+                    .onAppear {
+                        // Stop sync when not authenticated
+                        SyncService.shared.stopSyncTimer()
+                    }
             }
         }
     }

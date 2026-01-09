@@ -27,7 +27,7 @@ final class AuthManager: ObservableObject {
 
         // Check if we have stored user and tokens
         guard let _ = try? keychain.getAccessToken(),
-              let user = try? keychain.getCurrentUser() else {
+              let _ = try? keychain.getCurrentUser() else {
             isAuthenticated = false
             return
         }
@@ -83,7 +83,7 @@ final class AuthManager: ObservableObject {
 
         // Clear local data
         keychain.clearAll()
-        MessageCacheService.shared.clearAll()
+        DatabaseService.shared.clearAll()
 
         isAuthenticated = false
         currentUser = nil
