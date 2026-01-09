@@ -1,34 +1,16 @@
 services:
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: quickpic
-      POSTGRES_PASSWORD: quickpic_dev
-      POSTGRES_DB: quickpic
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./server/scripts/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U quickpic"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   server:
     build:
       context: ./server
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgres://quickpic:quickpic_dev@db:5432/quickpic?sslmode=disable
+      DATABASE_PATH: /data/quickpic.db
       JWT_SECRET: ${JWT_SECRET:-development-secret-change-in-production}
       PORT: 8080
+    volumes:
+      - quickpic_data:/data
     ports:
       - "8080:8080"
-    depends_on:
-      db:
-        condition: service_healthy
 
 volumes:
-  postgres_data:
+  quickpic_data:

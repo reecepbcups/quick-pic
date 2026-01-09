@@ -380,7 +380,7 @@ class CameraViewModel: NSObject, ObservableObject {
 }
 
 extension CameraViewModel: AVCapturePhotoCaptureDelegate {
-    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+    nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         guard let data = photo.fileDataRepresentation(),
               let image = UIImage(data: data) else {
             return
@@ -388,7 +388,7 @@ extension CameraViewModel: AVCapturePhotoCaptureDelegate {
 
         // Convert to PNG for lossless quality
         if let pngData = image.pngData() {
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.capturedImage = image
                 self.capturedImageData = pngData
             }

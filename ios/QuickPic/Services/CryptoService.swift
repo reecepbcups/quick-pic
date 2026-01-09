@@ -90,7 +90,7 @@ final class CryptoService: Sendable {
         result.append(encryptedContent)
 
         // 6. Sign the encrypted data
-        let signingKey = Curve25519.Signing.PrivateKey(rawRepresentation: senderPrivateKey.rawRepresentation)
+        let signingKey = try Curve25519.Signing.PrivateKey(rawRepresentation: senderPrivateKey.rawRepresentation)
         let signature = try signingKey.signature(for: result)
 
         return (result, signature.base64EncodedString())
